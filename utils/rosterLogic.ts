@@ -1,0 +1,340 @@
+
+import { Team, Player, RotationReport, DeletedPlayerRecord, RotationMode } from '../types';
+import { PLAYER_LIMIT_ON_COURT, PLAYERS_PER_TEAM } from '../constants';
+import { balanceTeamsSnake, distributeStandard, getStandardRotationResult, getBalancedRotationResult } from './balanceUtils';
+import { v4 as uuidv4 } from 'uuid';
+import { sanitizeInput } from './security';
+
+const BENCH_LIMIT = 6;
+
+// Helper to find a player anywhere in the game state structure passed as args
+const findAllPlayers = (courtA: Team, courtB: Team, queue: Team[]) => {
+    return [
+        ...courtA.players, ...(courtA.reserves || []),
+        ...courtB.players, ...(courtB.reserves || []),
+        ...queue.flatMap(t => [...t.players, ...(t.reserves || [])])
+    ];
+};
+
+export const createPlayer = (name: string, index: number, profileId?: string, skillLevel: number = 3, number?: string): Player => ({
+    id: uuidv4(),
+    name: sanitizeInput(name),
+    profileId,
+    skillLevel,
+    number,
+    isFixed: false,
+    originalIndex: index
+});
+
+export const createTeam = (name: string, players: Player[], color: string = 'slate'): Team => ({
+    id: uuidv4(),
+    name: sanitizeInput(name),
+    color,
+    players,
+    reserves: [],
+    hasActiveBench: false
+});
+
+// --- PURE LOGIC HANDLERS ---
+
+export const handleAddPlayer = (
+    courtA: Team, courtB: Team, queue: Team[], 
+    newPlayer: Player, targetId: string
+): { courtA: Team, courtB: Team, queue: Team[] } => {
+    
+    // Duplicate Check
+    const all = findAllPlayers(courtA, courtB, queue);
+    if (all.some(p => p.name.toLowerCase() === newPlayer.name.toLowerCase())) {
+        return { courtA, courtB, queue }; // No-op if duplicate
+    }
+
+    const addToTeamSmart = (team: Team): Team => {
+        if (team.players.length < PLAYERS_PER_TEAM) {
+            return { ...team, players: [...team.players, newPlayer] };
+        }
+        if ((team.reserves || []).length < BENCH_LIMIT) {
+            return { 
+                ...team, 
+                reserves: [...(team.reserves || []), newPlayer],
+                hasActiveBench: true 
+            };
+        }
+        return team;
+    };
+
+    const addToReservesDirect = (team: Team): Team => {
+        if ((team.reserves || []).length < BENCH_LIMIT) {
+            return { ...team, reserves: [...(team.reserves || []), newPlayer] };
+        }
+        return team;
+    };
+
+    if (targetId === 'A') return { courtA: addToTeamSmart(courtA), courtB, queue };
+    if (targetId === 'B') return { courtA, courtB: addToTeamSmart(courtB), queue };
+    if (targetId === 'A_Reserves') return { courtA: addToReservesDirect(courtA), courtB, queue };
+    if (targetId === 'B_Reserves') return { courtA, courtB: addToReservesDirect(courtB), queue };
+
+    // Queue Logic
+    if (targetId.endsWith('_Reserves')) {
+        const qId = targetId.split('_Reserves')[0];
+        const newQueue = queue.map(t => t.id === qId ? addToReservesDirect(t) : t);
+        return { courtA, courtB, queue: newQueue };
+    }
+
+    const qIndex = queue.findIndex(t => t.id === targetId);
+    if (qIndex >= 0) {
+        const newQueue = [...queue];
+        newQueue[qIndex] = addToTeamSmart(newQueue[qIndex]);
+        return { courtA, courtB, queue: newQueue };
+    }
+
+    if (targetId === 'Queue') {
+        const newQueue = [...queue];
+        if (newQueue.length > 0 && newQueue[newQueue.length - 1].players.length < PLAYERS_PER_TEAM) {
+            const last = newQueue[newQueue.length - 1];
+            newQueue[newQueue.length - 1] = { ...last, players: [...last.players, newPlayer] };
+        } else {
+            newQueue.push(createTeam(`Team ${newQueue.length + 1}`, [newPlayer]));
+        }
+        return { courtA, courtB, queue: newQueue };
+    }
+
+    return { courtA, courtB, queue };
+};
+
+export const handleRemovePlayer = (
+    courtA: Team, courtB: Team, queue: Team[], playerId: string
+): { courtA: Team, courtB: Team, queue: Team[] } => {
+    
+    let deletedPlayer: Player | undefined;
+    let targetTeam: Team | undefined;
+    let originType: 'A' | 'B' | 'Queue' | null = null;
+    let isFromReserves = false;
+
+    const removeFromList = (list: Player[]) => {
+        const p = list.find(x => x.id === playerId);
+        if (p) { deletedPlayer = p; return list.filter(x => x.id !== playerId); }
+        return list;
+    };
+
+    let newA = { ...courtA, players: [...courtA.players], reserves: [...(courtA.reserves || [])] };
+    let newB = { ...courtB, players: [...courtB.players], reserves: [...(courtB.reserves || [])] };
+    let newQueue = queue.map(t => ({...t, players: [...t.players], reserves: [...(t.reserves || [])]}));
+
+    // Search & Remove Logic
+    newA.players = removeFromList(newA.players);
+    if (!deletedPlayer) {
+        newA.reserves = removeFromList(newA.reserves || []);
+        if (deletedPlayer) isFromReserves = true;
+    }
+    if (deletedPlayer) { targetTeam = newA; originType = 'A'; }
+
+    if (!deletedPlayer) {
+        newB.players = removeFromList(newB.players);
+        if (!deletedPlayer) {
+            newB.reserves = removeFromList(newB.reserves || []);
+            if (deletedPlayer) isFromReserves = true;
+        }
+        if (deletedPlayer) { targetTeam = newB; originType = 'B'; }
+    }
+
+    if (!deletedPlayer) {
+        newQueue = newQueue.map(t => {
+            if (deletedPlayer) return t; 
+            const pRes = removeFromList(t.players);
+            if (deletedPlayer) { targetTeam = t; originType = 'Queue'; return { ...t, players: pRes }; }
+            
+            const rRes = removeFromList(t.reserves || []);
+            if (deletedPlayer) { isFromReserves = true; targetTeam = t; originType = 'Queue'; return { ...t, reserves: rRes }; }
+            
+            return t;
+        });
+    }
+
+    if (!deletedPlayer || !targetTeam || !originType) return { courtA, courtB, queue };
+
+    // --- NEW LOGIC: BENCH PRIORITY ---
+
+    // 1. If user was ALREADY in reserves, they are being "knocked out" completely (to end of queue)
+    if (isFromReserves) {
+        const endQueue = [...newQueue];
+        if (endQueue.length > 0) {
+            const last = endQueue[endQueue.length - 1];
+            if (last.players.length < PLAYERS_PER_TEAM) {
+                endQueue[endQueue.length - 1] = { ...last, players: [...last.players, deletedPlayer] };
+            } else {
+                endQueue.push(createTeam("Knocked Out", [deletedPlayer]));
+            }
+        } else {
+            endQueue.push(createTeam("Knocked Out", [deletedPlayer]));
+        }
+        return { courtA: newA, courtB: newB, queue: endQueue };
+    }
+
+    // 2. If user was ON COURT (A/B)
+    if (originType === 'A' || originType === 'B') {
+        // ALWAYS Move to own Bench (Send to Bench)
+        // If bench wasn't active, the UI handles activating it before calling this.
+        const updatedTeamWithReserve = { 
+            ...targetTeam, 
+            players: targetTeam.players.filter(p => p.id !== playerId), // ensure removed from main
+            reserves: [...(targetTeam.reserves || []), deletedPlayer],
+            hasActiveBench: true // Force active if logic reaches here
+        };
+
+        if (originType === 'A') return { courtA: updatedTeamWithReserve, courtB: newB, queue: newQueue };
+        if (originType === 'B') return { courtA: newA, courtB: updatedTeamWithReserve, queue: newQueue };
+    } 
+    
+    // 3. If user was in QUEUE (Main squad)
+    if (originType === 'Queue') {
+        if (targetTeam.hasActiveBench) {
+             const updatedTeam = { ...targetTeam, reserves: [...(targetTeam.reserves||[]), deletedPlayer] };
+             const qIndex = queue.findIndex(t => t.id === targetTeam!.id);
+             newQueue[qIndex] = updatedTeam;
+             return { courtA: newA, courtB: newB, queue: newQueue };
+        } else {
+            // Queue removal behaves like knockout if no bench
+            const endQueue = [...newQueue];
+            // ... (add to end logic) ...
+             if (endQueue.length > 0) {
+                const last = endQueue[endQueue.length - 1];
+                if (last.players.length < PLAYERS_PER_TEAM) {
+                    endQueue[endQueue.length - 1] = { ...last, players: [...last.players, deletedPlayer] };
+                } else {
+                    endQueue.push(createTeam("Knocked Out", [deletedPlayer]));
+                }
+            } else {
+                endQueue.push(createTeam("Knocked Out", [deletedPlayer]));
+            }
+            return { courtA: newA, courtB: newB, queue: endQueue };
+        }
+    }
+
+    return { courtA: newA, courtB: newB, queue: newQueue };
+};
+
+export const handleDeletePlayer = (
+    courtA: Team, courtB: Team, queue: Team[], playerId: string
+): { courtA: Team, courtB: Team, queue: Team[], record?: DeletedPlayerRecord } => {
+    let deletedPlayer: Player | undefined;
+    let originId = '';
+
+    const checkAndRemove = (list: Player[], teamId: string): Player[] => {
+        const found = list.find(p => p.id === playerId);
+        if (found) {
+            deletedPlayer = found;
+            originId = teamId;
+            return list.filter(p => p.id !== playerId);
+        }
+        return list;
+    };
+
+    const newA = { ...courtA, players: checkAndRemove(courtA.players, 'A'), reserves: checkAndRemove(courtA.reserves||[], 'A_Reserves') };
+    const newB = { ...courtB, players: checkAndRemove(courtB.players, 'B'), reserves: checkAndRemove(courtB.reserves||[], 'B_Reserves') };
+    
+    const newQueue = queue.map(t => ({
+        ...t,
+        players: checkAndRemove(t.players, t.id),
+        reserves: checkAndRemove(t.reserves||[], `${t.id}_Reserves`)
+    }));
+
+    if (deletedPlayer) {
+        return { courtA: newA, courtB: newB, queue: newQueue, record: { player: deletedPlayer, originId, timestamp: Date.now() } };
+    }
+    return { courtA, courtB, queue };
+};
+
+export const handleMovePlayer = (
+    courtA: Team, courtB: Team, queue: Team[], 
+    playerId: string, fromId: string, toId: string, newIndex?: number
+): { courtA: Team, courtB: Team, queue: Team[] } => {
+    
+    let player: Player | undefined;
+         
+    const removeFromList = (list: Player[]) => {
+        const p = list.find(x => x.id === playerId);
+        if (p) { player = p; return list.filter(x => x.id !== playerId); }
+        return list;
+    };
+
+    let newA = { ...courtA };
+    let newB = { ...courtB };
+    let newQueue = queue.map(t => ({...t}));
+    
+    // Remove
+    if (fromId === 'A') newA.players = removeFromList(newA.players);
+    else if (fromId === 'A_Reserves') newA.reserves = removeFromList(newA.reserves || []);
+    else if (fromId === 'B') newB.players = removeFromList(newB.players);
+    else if (fromId === 'B_Reserves') newB.reserves = removeFromList(newB.reserves || []);
+    else {
+        newQueue = newQueue.map(t => {
+            if (fromId === t.id) return { ...t, players: removeFromList(t.players) };
+            if (fromId === `${t.id}_Reserves`) return { ...t, reserves: removeFromList(t.reserves || []) };
+            return t;
+        });
+    }
+    
+    if (!player) return { courtA, courtB, queue };
+
+    // Add
+    const addToList = (list: Player[], p: Player, idx?: number) => {
+        const copy = [...list];
+        if (idx !== undefined && idx >= 0 && idx <= copy.length) copy.splice(idx, 0, p);
+        else copy.push(p);
+        return copy;
+    };
+
+    if (toId === 'A') newA.players = addToList(newA.players, player, newIndex);
+    else if (toId === 'A_Reserves') newA.reserves = addToList(newA.reserves || [], player, newIndex);
+    else if (toId === 'B') newB.players = addToList(newB.players, player, newIndex);
+    else if (toId === 'B_Reserves') newB.reserves = addToList(newB.reserves || [], player, newIndex);
+    else {
+        newQueue = newQueue.map(t => {
+            if (toId === t.id) return { ...t, players: addToList(t.players, player, newIndex) };
+            if (toId === `${t.id}_Reserves`) return { ...t, reserves: addToList(t.reserves || [], player, newIndex) };
+            return t;
+        });
+    }
+
+    return { courtA: newA, courtB: newB, queue: newQueue };
+};
+
+export const handleRotate = (
+    courtA: Team, courtB: Team, queue: Team[], winnerId: 'A'|'B', mode: RotationMode
+): { courtA: Team, courtB: Team, queue: Team[], report: RotationReport | null } => {
+    
+    if (queue.length === 0 && courtA.players.length >= 6 && courtB.players.length >= 6) {
+        return { courtA, courtB, queue, report: null };
+    }
+
+    const winnerTeam = winnerId === 'A' ? courtA : courtB;
+    const loserTeam = winnerId === 'A' ? courtB : courtA;
+
+    let result;
+    if (mode === 'balanced') {
+        result = getBalancedRotationResult(winnerTeam, loserTeam, queue);
+    } else {
+        result = getStandardRotationResult(winnerTeam, loserTeam, queue);
+    }
+
+    // Persist Bench State
+    const nextCourtA = winnerId === 'A' 
+        ? { ...courtA } 
+        : { ...result.incomingTeam, reserves: courtA.reserves, hasActiveBench: courtA.hasActiveBench }; 
+        
+    const nextCourtB = winnerId === 'B' 
+        ? { ...courtB } 
+        : { ...result.incomingTeam, reserves: courtB.reserves, hasActiveBench: courtB.hasActiveBench };
+
+    const report: RotationReport = {
+        outgoingTeam: loserTeam,
+        incomingTeam: result.incomingTeam,
+        retainedPlayers: result.retainedPlayers,
+        stolenPlayers: result.stolenPlayers,
+        queueAfterRotation: result.queueAfterRotation,
+        logs: result.logs
+    };
+
+    return { courtA: nextCourtA, courtB: nextCourtB, queue: result.queueAfterRotation, report };
+};

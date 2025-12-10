@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#020617" />
+    <meta name="description" content="Advanced Volleyball Scoreboard & Team Management PWA with rotation logic, sudden death rules, and neo-glass UI.">
+    
+    <!-- Security: Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;
+      script-src * 'unsafe-inline' 'unsafe-eval' data: blob:;
+      connect-src * 'unsafe-inline' data: blob:;
+      img-src * data: blob:;
+      frame-src * data: blob:;
+      style-src * 'unsafe-inline';
+      worker-src * data: blob:;
+      font-src * data:;
+    ">
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VolleyScore" />
+    <meta name="application-name" content="VolleyScore Pro" />
+    
+    <!-- PWA Icons -->
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="mask-icon" href="/logo.svg" color="#6366f1" />
+    
+    <title>VolleyScore Pro 2</title>
+    
+    <!-- Dependencies -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // FIX: Configure Tailwind to use 'class' strategy for dark mode
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+          }
+        }
+      }
+    </script>
+
+    <!-- Theme Initialization Script (Avoids FOUC) -->
+    <script>
+      (function() {
+        try {
+          var savedTheme = localStorage.getItem('appTheme');
+          var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          // Apply dark mode if saved as 'dark' OR if no save exists and system is dark
+          if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+            document.documentElement.classList.add('dark');
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#020617');
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f1f5f9');
+          }
+        } catch (e) {
+          console.error("Theme init error", e);
+        }
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" crossorigin="anonymous">
+    
+    <style>
+      /* PWA & Mobile Optimizations - True Fullscreen Reset */
+      html, body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Prevents scroll bounce */
+        overscroll-behavior: none;
+        background-color: #000000; /* Deep black backing for notch/dynamic island */
+        
+        /* Disable automatic text size adjustment (iPhone rotate fix) */
+        -webkit-text-size-adjust: 100%; 
+        text-size-adjust: 100%;
+        
+        /* Remove tap highlight color */
+        -webkit-tap-highlight-color: transparent;
+      }
+      
+      /* Global Smooth Theme Transition */
+      body {
+        transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 300ms;
+      }
+
+      /* Force color-scheme to match class for scrollbars/native UI */
+      html.dark {
+        color-scheme: dark;
+      }
+      html:not(.dark) {
+        color-scheme: light;
+      }
+      
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      
+      /* Noise Texture - More subtle (0.02) */
+      .bg-noise {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+        z-index: 50;
+        opacity: 0.02;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      }
+
+      /* Hide scrollbar for clean UI */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
+    "zustand/": "https://aistudiocdn.com/zustand@^5.0.9/",
+    "zustand": "https://aistudiocdn.com/zustand@^5.0.9",
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.25",
+    "html-to-image": "https://aistudiocdn.com/html-to-image@^1.11.13",
+    "@dnd-kit/sortable": "https://aistudiocdn.com/@dnd-kit/sortable@^10.0.0",
+    "vite-plugin-pwa": "https://aistudiocdn.com/vite-plugin-pwa@^1.2.0",
+    "@dnd-kit/core": "https://aistudiocdn.com/@dnd-kit/core@^6.3.1",
+    "@dnd-kit/utilities": "https://aistudiocdn.com/@dnd-kit/utilities@^3.2.2",
+    "@capacitor/core": "https://aistudiocdn.com/@capacitor/core@^7.4.4",
+    "@capacitor/filesystem": "https://aistudiocdn.com/@capacitor/filesystem@^7.1.5",
+    "@capacitor/share": "https://aistudiocdn.com/@capacitor/share@^7.0.2",
+    "@capacitor/app": "https://aistudiocdn.com/@capacitor/app@^7.0.2",
+    "@capacitor/haptics": "https://aistudiocdn.com/@capacitor/haptics@^7.0.2",
+    "@capacitor/splash-screen": "https://aistudiocdn.com/@capacitor/splash-screen@^7.0.2",
+    "@capacitor/status-bar": "https://aistudiocdn.com/@capacitor/status-bar@^7.0.2",
+    "@capacitor/preferences": "https://aistudiocdn.com/@capacitor/preferences@^7.0.2",
+    "@capacitor/screen-orientation": "https://aistudiocdn.com/@capacitor/screen-orientation@^7.0.2",
+    "@capacitor/cli": "https://aistudiocdn.com/@capacitor/cli@^8.0.0",
+    "react-virtuoso": "https://aistudiocdn.com/react-virtuoso@^4.17.0",
+    "idb-keyval": "https://aistudiocdn.com/idb-keyval@^6.2.2",
+    "@capacitor-community/speech-recognition": "https://aistudiocdn.com/@capacitor-community/speech-recognition@^7.0.1",
+    "@capacitor-community/keep-awake": "https://esm.sh/@capacitor-community/keep-awake@^7.1.0",
+    "@capacitor-community/text-to-speech": "https://esm.sh/@capacitor-community/text-to-speech@^6.1.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.32.0",
+    "firebase/": "https://esm.sh/firebase@^12.6.0/"
+  }
+}
+</script>
+</head>
+  <body class="bg-slate-100 dark:bg-[#020617] text-slate-900 dark:text-slate-100 antialiased h-screen overflow-hidden selection:bg-indigo-500 selection:text-white transition-colors duration-300">
+    <div class="bg-noise"></div>
+    <div id="root" class="h-full w-full flex flex-col relative z-10"></div>
+    
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

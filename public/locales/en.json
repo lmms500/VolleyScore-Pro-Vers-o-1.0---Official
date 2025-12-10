@@ -1,0 +1,254 @@
+
+{
+  "app": {
+    "loading": "Loading..."
+  },
+  "languages": {
+    "en": "English",
+    "pt": "Português (Brasil)",
+    "es": "Español"
+  },
+  "common": {
+    "done": "Done",
+    "full": "Full",
+    "add": "Add"
+  },
+  "controls": {
+    "undo": "Undo",
+    "swap": "Swap Sides",
+    "teams": "Teams",
+    "settings": "Settings",
+    "history": "History",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
+    "reset": "Reset Match"
+  },
+  "history": {
+    "gameStart": "Game Start",
+    "setLabel": "S{setNumber}"
+  },
+  "game": {
+    "serving": "Serving",
+    "matchPoint": "Match Point",
+    "setPoint": "Set Point",
+    "deuce": "Deuce",
+    "suddenDeath": "Sudden Death",
+    "tieBreak": "Tie Break",
+    "timeout": "TIMEOUT",
+    "useTimeout": "Use Timeout",
+    "menu": "Menu"
+  },
+  "status": {
+    "sudden_death": "SUDDEN DEATH",
+    "deuce_advantage": "ADVANTAGE DEUCE",
+    "golden_point": "GOLDEN POINT",
+    "match_point": "MATCH POINT",
+    "set_point": "SET POINT",
+    "tie_break": "TIE BREAK"
+  },
+  "settings": {
+    "title": "Configuration",
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "language": "Language",
+      "themes": {
+        "light": "Light",
+        "dark": "Dark"
+      }
+    },
+    "rules": {
+      "title": "Match Rules",
+      "setsToPlay": "Sets to Play",
+      "pointsPerSet": "Points per Set",
+      "tieBreak": "Tie Break (Final Set)",
+      "tieBreakTo15": "to 15 pts",
+      "tieBreakTo25": "to 25 pts",
+      "deuceLogic": "Deuce Logic",
+      "deuceStandard": "Advantage of 2",
+      "deuceSuddenDeath": "Sudden Death (3pts)"
+    },
+    "applyChanges": "Apply Changes",
+    "applyAndReset": "Apply & Restart Match",
+    "warningTitle": "Match in Progress",
+    "warningMessage": "Changing rules now will reset the current match score."
+  },
+  "presets": {
+    "fivb": {
+      "label": "Indoor (FIVB)",
+      "sub": "5 Sets • 25 Pts"
+    },
+    "beach": {
+      "label": "Beach Volley",
+      "sub": "3 Sets • 21 Pts"
+    },
+    "custom": {
+      "label": "Custom Match",
+      "sub": "1 Set • 15 Pts • Sudden Death"
+    }
+  },
+  "install": {
+    "title": "Install App",
+    "description": "Add to home screen for full experience.",
+    "installNow": "Install Now",
+    "ios": {
+      "tap": "Tap",
+      "then": "then",
+      "addToHome": "Add to Home Screen"
+    },
+    "android": {
+      "tap": "Tap",
+      "then": "then",
+      "installApp": "Install App"
+    }
+  },
+  "tutorial": {
+    "header": "Welcome",
+    "next": "Next",
+    "welcome": {
+      "title": "Welcome to VolleyScore Pro",
+      "desc": "The ultimate professional scoreboard for volleyball enthusiasts and referees."
+    },
+    "gestures": {
+      "title": "Smart Gestures",
+      "desc": "Tap anywhere on a score to ADD a point. Swipe down to SUBTRACT."
+    },
+    "features": {
+      "title": "Full Control",
+      "desc": "Manage rotations, subs, timeouts, and match history from the control bar."
+    },
+    "install": {
+      "title": "Install App",
+      "installed": "You are all set! The app is installed and ready for offline use.",
+      "descAndroid": "Install the app for the best experience. Works offline and fullscreen.",
+      "descIOS": "To install on iOS, follow the instructions below:",
+      "descAndroidShort": "Install for offline use & fullscreen.",
+      "descIOSShort": "Add to Home Screen for fullscreen."
+    }
+  },
+  "confirm": {
+    "cancel": "Cancel",
+    "reset": {
+      "title": "Reset Match?",
+      "message": "Are you sure you want to reset the match? All scores and history will be lost.",
+      "confirmButton": "Yes, Reset"
+    },
+    "unsaved": {
+      "title": "Unsaved Changes?",
+      "message": "You have made changes to the roster. Are you sure you want to close?",
+      "confirmButton": "Close Anyway"
+    }
+  },
+  "matchOver": {
+    "title": "Match Result",
+    "wins": "Wins the Match",
+    "nextGameButton": "Start Next Game",
+    "share": "Share Result",
+    "generating": "Creating Image...",
+    "rotationReport": {
+      "title": "Rotation Report",
+      "entering": "{teamName} Entering",
+      "leaving": "Leaving",
+      "newSize": "New Roster Size",
+      "players": "{count} Players",
+      "coreSquad": "Core Squad (Queue)",
+      "none": "None",
+      "reinforcements": "Reinforcements",
+      "source": "Stolen / Recycled"
+    },
+    "debugLogs": "Rotation Logic Logs"
+  },
+  "teamManager": {
+    "title": "Squad Management",
+    "currentRoster": "Current Roster",
+    "batchInput": "Batch Input",
+    "batchInputPrompt": "Paste names below (one per line).",
+    "batchInputPlaceholder": "John Doe\nJane Smith\n...",
+    "generateTeams": "Generate Teams",
+    "queue": "Waiting Queue",
+    "queueEmpty": "Queue empty",
+    "dragPlayersHere": "Drag players here",
+    "addPlayer": "Add Player",
+    "addPlayerPlaceholder": "New player name...",
+    "searchProfiles": "Search profiles...",
+    "rosterFull": "Roster Full",
+    "lockPlayer": "Lock Player",
+    "unlockPlayer": "Unlock Player",
+    "playerRemoved": "Player removed",
+    "undo": "UNDO",
+    "teamLabel": "Team",
+    "benchLabel": "Reserve Bench",
+    "syncProfiles": "Sync Profiles",
+    "saveProfile": "Save to Profile",
+    "sort": {
+      "label": "Sort",
+      "name": "Name",
+      "number": "Number",
+      "skill": "Skill",
+      "asc": "Ascending",
+      "desc": "Descending"
+    },
+    "tabs": {
+      "roster": "Roster",
+      "profiles": "Profiles",
+      "batch": "Batch"
+    },
+    "modes": {
+      "standard": "Standard",
+      "standardTooltip": "Rotation: Winner Stays, Loser to End. Gaps filled from next teams.",
+      "balanced": "Balanced",
+      "balancedTooltip": "Rotation: Winner Stays. Gaps filled to match Winner's skill level."
+    },
+    "actions": {
+      "restoreOrder": "Restore Order",
+      "globalBalance": "Global Balance",
+      "addToA": "Add to A",
+      "addToB": "Add to B",
+      "addToQueue": "Add to Queue"
+    },
+    "sync": {
+      "synced": "Synced",
+      "desynced": "Unsaved Changes",
+      "unlinked": "No Profile",
+      "updateTooltip": "Update Profile",
+      "createTooltip": "Create Profile",
+      "revertTooltip": "Revert to Profile Data"
+    },
+    "location": {
+      "courtA": "Court A",
+      "courtB": "Court B",
+      "queue": "In Queue"
+    },
+    "emptyProfiles": "No profiles saved yet. Sync players in the Roster tab to create profiles."
+  },
+  "historyList": {
+    "title": "Match History",
+    "empty": "No matches recorded yet.",
+    "searchPlaceholder": "Search teams...",
+    "filters": {
+      "title": "Filters",
+      "all": "All Matches",
+      "winnerA": "Winner: Team A",
+      "winnerB": "Winner: Team B",
+      "scouted": "With Stats (Scouted)"
+    },
+    "sort": {
+      "newest": "Newest First",
+      "oldest": "Oldest First",
+      "longest": "Longest Duration",
+      "shortest": "Shortest Duration"
+    },
+    "export": "Export JSON",
+    "import": "Import JSON",
+    "importSuccess": "History imported successfully!",
+    "importError": "Invalid file format.",
+    "delete": "Delete",
+    "duration": "Duration",
+    "date": "Date"
+  },
+  "errors": {
+    "genericTitle": "Something went wrong",
+    "genericMessage": "The application encountered an unexpected error. We apologize for the inconvenience.",
+    "reload": "Reload App"
+  }
+}

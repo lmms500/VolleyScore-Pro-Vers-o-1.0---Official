@@ -1,0 +1,8 @@
+{
+  "name": "Copy of VolleyScore Pro Versão 1.0 - Official",
+  "description": "Advanced Volleyball Scoreboard & Team Management PWA with rotation logic, sudden death rules, and neo-glass UI.",
+  "version": "2.0.6",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
