@@ -1,4 +1,5 @@
 
+
 import { GameState, TeamId, SetHistory, ActionLog, Team, Player, SkillType, GameAction } from '../types';
 import { SETS_TO_WIN_MATCH, MIN_LEAD_TO_WIN } from '../constants';
 import { isValidTimeoutRequest, sanitizeInput } from '../utils/security';
@@ -344,10 +345,10 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         
         const allNewPlayers = validNames.map((raw, idx) => {
             const trimmed = raw.trim();
-            const match = trimmed.match(/^(.+)\s+([1-5])$/);
+            const match = trimmed.match(/^(.+)\s+(10|[1-9])$/);
             
             let name = trimmed;
-            let skill = 3;
+            let skill = 5;
             
             if (match) {
                 name = match[1].trim();

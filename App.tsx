@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, lazy, Suspense, useCallback, useRef } from 'react';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { usePWAInstallPrompt } from './hooks/usePWAInstallPrompt';
@@ -53,7 +54,7 @@ const GameContent = () => {
     resetMatch, generateTeams, togglePlayerFixed, removePlayer, movePlayer, updateTeamName, updateTeamColor,
     updatePlayerName, updatePlayerNumber, updatePlayerSkill, addPlayer, undoRemovePlayer, commitDeletions, 
     rotateTeams, setRotationMode, balanceTeams, savePlayerToProfile, revertPlayerChanges, upsertProfile, 
-    deleteProfile, sortTeam, toggleTeamBench, substitutePlayers, deletePlayer
+    deleteProfile, sortTeam, toggleTeamBench, substitutePlayers, deletePlayer, reorderQueue, disbandTeam
   } = game;
 
   const { language } = useTranslation();
@@ -486,6 +487,8 @@ const GameContent = () => {
                 onSortTeam={sortTeam} toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers}
                 matchLog={state.matchLog}
                 enablePlayerStats={state.config.enablePlayerStats}
+                reorderQueue={reorderQueue}
+                disbandTeam={disbandTeam}
             />
 
             <MatchOverModal 

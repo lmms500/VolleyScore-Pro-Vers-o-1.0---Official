@@ -1,8 +1,10 @@
+
+
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TeamColor, SkillType } from '../../types';
 import { resolveTheme } from '../../utils/colors';
-import { Swords, Shield, Target, AlertTriangle, CheckCircle2, Mic, AlertCircle, HelpCircle, X, Sparkles } from 'lucide-react';
+import { Swords, Shield, Target, AlertTriangle, CheckCircle2, Mic, AlertCircle, HelpCircle, X, Sparkles, ArrowRightLeft, Save, Ban } from 'lucide-react';
 import { springSnappy } from '../../utils/animations';
 
 interface VoiceToastProps {
@@ -15,6 +17,7 @@ interface VoiceToastProps {
   onClose: () => void;
   duration?: number;
   isFullscreen?: boolean;
+  systemIcon?: 'transfer' | 'save' | 'mic' | 'alert' | 'block';
 }
 
 const skillIcons: Record<SkillType | 'generic', any> = {
@@ -33,8 +36,16 @@ const skillLabels: Record<SkillType | 'generic', string> = {
     generic: 'Point Added'
 };
 
+const systemIconsMap: Record<string, any> = {
+    transfer: ArrowRightLeft,
+    save: Save,
+    mic: Mic,
+    alert: AlertCircle,
+    block: Ban
+};
+
 export const VoiceToast: React.FC<VoiceToastProps> = ({ 
-  visible, type, mainText, subText, teamColor, skill, onClose, duration = 3000, isFullscreen
+  visible, type, mainText, subText, teamColor, skill, onClose, duration = 3000, isFullscreen, systemIcon
 }) => {
   const onCloseRef = useRef(onClose);
 
@@ -105,16 +116,40 @@ export const VoiceToast: React.FC<VoiceToastProps> = ({
       theme.textColor = 'text-violet-600 dark:text-violet-300';
   }
 
+  // Apply System Icon Override if provided
+  if (systemIcon && systemIconsMap[systemIcon]) {
+      theme.Icon = systemIconsMap[systemIcon];
+      // Optional: Tweaks for specific system actions
+      if (systemIcon === 'transfer') {
+          theme.iconBg = 'bg-amber-500/10';
+          theme.iconColor = 'text-amber-500';
+          theme.borderColor = 'border-amber-500/20';
+          theme.textColor = 'text-amber-700 dark:text-amber-300';
+      }
+      if (systemIcon === 'save') {
+          theme.iconBg = 'bg-emerald-500/10';
+          theme.iconColor = 'text-emerald-500';
+          theme.borderColor = 'border-emerald-500/20';
+          theme.textColor = 'text-emerald-700 dark:text-emerald-300';
+      }
+      if (systemIcon === 'block') {
+          theme.iconBg = 'bg-rose-500/10';
+          theme.iconColor = 'text-rose-500';
+          theme.borderColor = 'border-rose-500/20';
+          theme.textColor = 'text-rose-700 dark:text-rose-300';
+      }
+  }
+
   let topLabel = '';
   let bottomLabel = mainText;
 
   if (type === 'success') {
       topLabel = subText || skillLabels[skill || 'generic'];
   } else if (type === 'error') {
-      topLabel = 'Not Understood';
-      bottomLabel = mainText ? `"${mainText}"` : "Please speak clearly";
+      topLabel = subText || 'Error';
+      bottomLabel = mainText ? mainText : "Something went wrong";
   } else {
-      topLabel = subText || 'Command Recognized';
+      topLabel = subText || 'Info';
       bottomLabel = mainText;
   }
 

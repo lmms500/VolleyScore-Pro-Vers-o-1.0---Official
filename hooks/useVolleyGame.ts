@@ -209,7 +209,11 @@ export const useVolleyGame = () => {
   // Profile Helpers
   const savePlayerToProfile = useCallback((playerId: string, overrides?: { name?: string, number?: string, avatar?: string, skill?: number }) => {
       let p;
-      const all = [...state.teamARoster.players, ...state.teamBRoster.players, ...state.queue.flatMap(t => t.players)];
+      const all = [
+        ...state.teamARoster.players, ...(state.teamARoster.reserves || []),
+        ...state.teamBRoster.players, ...(state.teamBRoster.reserves || []),
+        ...state.queue.flatMap(t => [...t.players, ...(t.reserves||[])])
+      ];
       p = all.find(x => x.id === playerId);
       
       if(p) {
@@ -221,7 +225,8 @@ export const useVolleyGame = () => {
           
           const profile = upsertProfile(nameToUse, skillToUse, p.profileId, extras);
           
-          // Ensure the player instance is updated with the profile ID AND the latest data
+          // CRITICAL FIX: Ensure the player instance is updated with the profile ID AND the latest data
+          // This creates the link (sync) between the roster player and the profile db
           dispatch({ 
               type: 'ROSTER_UPDATE_PLAYER', 
               playerId, 

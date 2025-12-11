@@ -1,3 +1,4 @@
+
 import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
 import { Button } from './Button';
@@ -25,7 +26,7 @@ const ErrorContent: React.FC<{ error: Error | null, onReload: () => void }> = ({
             {t('errors.genericMessage')}
           </p>
           <div className="flex gap-4">
-             <Button onClick={onReload} size="lg" className="bg-indigo-600 hover:bg-indigo-50 shadow-indigo-500/20 text-white border-none">
+             <Button onClick={onReload} size="lg" className="bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20 text-white border-none">
                 <RefreshCcw size={18} /> {t('errors.reload')}
              </Button>
           </div>

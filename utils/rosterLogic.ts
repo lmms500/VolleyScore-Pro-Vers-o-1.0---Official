@@ -1,4 +1,5 @@
 
+
 import { Team, Player, RotationReport, DeletedPlayerRecord, RotationMode } from '../types';
 import { PLAYER_LIMIT_ON_COURT, PLAYERS_PER_TEAM } from '../constants';
 import { balanceTeamsSnake, distributeStandard, getStandardRotationResult, getBalancedRotationResult } from './balanceUtils';
@@ -16,7 +17,7 @@ const findAllPlayers = (courtA: Team, courtB: Team, queue: Team[]) => {
     ];
 };
 
-export const createPlayer = (name: string, index: number, profileId?: string, skillLevel: number = 3, number?: string): Player => ({
+export const createPlayer = (name: string, index: number, profileId?: string, skillLevel: number = 5, number?: string): Player => ({
     id: uuidv4(),
     name: sanitizeInput(name),
     profileId,

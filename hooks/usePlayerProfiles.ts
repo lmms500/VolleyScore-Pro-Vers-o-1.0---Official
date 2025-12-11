@@ -1,4 +1,5 @@
 
+
 import { useState, useEffect, useCallback } from 'react';
 import { PlayerProfile } from '../types';
 import { SecureStorage } from '../services/SecureStorage';
@@ -44,7 +45,7 @@ export const usePlayerProfiles = () => {
     const newProfile: PlayerProfile = {
       id: existing?.id || uuidv4(),
       name: cleanName,
-      skillLevel: Math.min(5, Math.max(1, skillLevel)),
+      skillLevel: Math.min(10, Math.max(1, skillLevel)),
       number: extras?.number !== undefined ? extras.number : existing?.number,
       avatar: extras?.avatar !== undefined ? extras.avatar : existing?.avatar,
       createdAt: existing?.createdAt || now,
