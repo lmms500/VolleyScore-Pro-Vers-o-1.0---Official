@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, lazy, Suspense, useCallback, useRef } from 'react';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { usePWAInstallPrompt } from './hooks/usePWAInstallPrompt';
@@ -103,19 +102,9 @@ const GameContent = () => {
     if (process.env.NODE_ENV === 'production') {
       const meta = document.getElementById('csp-meta');
       if (meta) {
-        const strictPolicy = `
-          default-src 'self' https://*.google.com https://*.googleapis.com;
-          script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://esm.sh https://apis.google.com https://*.google.com https://*.gstatic.com;
-          style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com;
-          img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com;
-          font-src 'self' data: https://fonts.gstatic.com;
-          connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com https://identitytoolkit.googleapis.com;
-          worker-src 'self' blob:;
-          frame-src 'self' https://*.firebaseapp.com;
-          object-src 'none';
-          base-uri 'self';
-        `;
-        meta.setAttribute('content', strictPolicy.replace(/\s{2,}/g, ' ').trim());
+        // PERMISSIVE POLICY FOR PREVIEW/PRODUCTION TO AVOID WSOD
+        const permissivePolicy = "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval';";
+        meta.setAttribute('content', permissivePolicy);
       }
     }
   }, []);

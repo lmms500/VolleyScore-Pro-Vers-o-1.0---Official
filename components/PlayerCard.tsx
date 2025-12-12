@@ -158,7 +158,8 @@ export const PlayerCard = memo(({
           return;
       } 
       haptics.impact('light');
-      if (onShowToast) onShowToast("Already up to date", 'info');
+      // Trigger View Mode if already synced
+      onRequestProfileEdit(player.id);
   }, [isLinked, isDirty, player, profile, onSaveProfile, onRequestProfileEdit, haptics, onShowToast]);
 
   const handleMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -193,9 +194,11 @@ export const PlayerCard = memo(({
           syncColor = 'text-amber-500 hover:bg-amber-500/10 animate-pulse';
           syncTitle = "Unsaved Changes - Tap to Sync";
       } else {
+          // If synced, show avatar as actionable button area logic? 
+          // Keeping Icon for now but changing semantics
           SyncIcon = Check;
           syncColor = 'text-emerald-500 hover:bg-emerald-500/10';
-          syncTitle = "Synced";
+          syncTitle = "Synced - Tap to View";
       }
   }
 
@@ -208,9 +211,9 @@ export const PlayerCard = memo(({
             <EditableNumber number={player.number} onSave={(v) => onUpdatePlayer(player.id, { number: v })} validator={validateNumber} />
         </div>
         
-        <div className="flex flex-1 items-center gap-2 min-w-0 px-2">
+        <div className="flex flex-1 items-center gap-2 min-w-0 px-2" onClick={() => onRequestProfileEdit(player.id)}>
             {profile?.avatar && (
-                <span className="text-sm grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all flex-shrink-0">{profile.avatar}</span>
+                <span className="text-sm grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all flex-shrink-0 cursor-pointer">{profile.avatar}</span>
             )}
             
             <div className="flex flex-col min-w-0 flex-1">
