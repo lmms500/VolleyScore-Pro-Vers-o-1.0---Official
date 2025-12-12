@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, lazy, Suspense, useCallback, useRef } from 'react';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { usePWAInstallPrompt } from './hooks/usePWAInstallPrompt';
@@ -55,7 +54,7 @@ const GameContent = () => {
     updatePlayer, addPlayer, undoRemovePlayer, commitDeletions, 
     rotateTeams, setRotationMode, balanceTeams, savePlayerToProfile, revertPlayerChanges, upsertProfile, 
     deleteProfile, sortTeam, toggleTeamBench, substitutePlayers, deletePlayer, reorderQueue, disbandTeam,
-    batchUpdateStats, profiles, restoreTeam, onRestorePlayer, resetRosters
+    batchUpdateStats, profiles, restoreTeam, onRestorePlayer, resetRosters, relinkProfile
   } = game;
 
   const { t, language } = useTranslation();
@@ -464,7 +463,7 @@ const GameContent = () => {
                     deleteProfile={deleteProfile} upsertProfile={upsertProfile} profiles={game.profiles} onSortTeam={sortTeam}
                     toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} matchLog={state.matchLog}
                     enablePlayerStats={state.config.enablePlayerStats} reorderQueue={reorderQueue} disbandTeam={disbandTeam}
-                    restoreTeam={restoreTeam} onRestorePlayer={(p, t, i) => onRestorePlayer && onRestorePlayer(p, t, i)} resetRosters={resetRosters}
+                    restoreTeam={restoreTeam} onRestorePlayer={(p, t, i) => onRestorePlayer && onRestorePlayer(p, t, i)} resetRosters={resetRosters} relinkProfile={relinkProfile}
                 />
             )}
             {state.isMatchOver && <MatchOverModal isOpen={state.isMatchOver} state={state} onRotate={rotateTeams} onReset={resetMatch} onUndo={handleUndo} />}

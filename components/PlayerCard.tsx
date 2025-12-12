@@ -75,22 +75,33 @@ const EditableNumber = memo(({ number, onSave, validator }: { number?: string; o
 
     const save = () => {
         const trimmed = val.trim();
-        // Validation handled by parent via onSave/Toast, but local check adds visual feedback
-        if (validator && trimmed && trimmed !== (number || '') && !validator(trimmed)) {
-            setError(true);
-            setTimeout(() => setError(false), 500); 
-            inputRef.current?.focus();
+        // Skip validation if value hasn't changed
+        if (trimmed === (number || '')) {
+            setIsEditing(false);
             return;
         }
+
+        // Strict Validation Check
+        if (validator && trimmed && !validator(trimmed)) {
+            setError(true);
+            // Shake/Flash error and revert
+            setTimeout(() => {
+                setError(false);
+                setIsEditing(false); 
+                setVal(number || ''); // Reset to original
+            }, 600); 
+            return; // ABORT SAVE
+        }
+
         setIsEditing(false);
-        if (trimmed !== (number || '')) onSave(trimmed);
+        onSave(trimmed);
     };
 
     if(isEditing) {
         return (
             <input 
                 ref={inputRef} type="tel" maxLength={3}
-                className={`w-7 h-7 bg-white dark:bg-black/50 text-center rounded-md border outline-none text-xs font-bold text-slate-800 dark:text-white shadow-sm ${error ? 'border-red-500 bg-red-50' : 'border-indigo-500'}`}
+                className={`w-7 h-7 bg-white dark:bg-black/50 text-center rounded-md border outline-none text-xs font-bold text-slate-800 dark:text-white shadow-sm ${error ? 'border-red-500 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 animate-pulse' : 'border-indigo-500'}`}
                 value={val} onChange={e => { setVal(e.target.value); setError(false); }}
                 onBlur={save} onKeyDown={e => { if(e.key === 'Enter') save(); if(e.key === 'Escape') setIsEditing(false); }}
                 onPointerDown={e => e.stopPropagation()} 
@@ -130,7 +141,9 @@ export const PlayerCard = memo(({
       boxShadow: isDragging ? '0 10px 30px -10px rgba(0,0,0,0.3)' : 'none',
   };
   
+  // Logic: Only linked if BOTH Player has a profileId AND that profile actually exists
   const isLinked = !!player.profileId && !!profile;
+  
   const isDirty = useMemo(() => {
     if (!isLinked || !profile) return false;
     return (
@@ -212,7 +225,8 @@ export const PlayerCard = memo(({
                 onClick={handleViewRequest}
                 onPointerDown={e => e.stopPropagation()} // Isolate from drag
             >
-                {profile?.avatar ? (
+                {/* Visual Logic: Show Avatar if Linked, else show Role Icon if assigned, else Spacer */}
+                {isLinked && profile?.avatar ? (
                     <span className="text-sm grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all flex-shrink-0">{profile.avatar}</span>
                 ) : (
                     RoleIcon ? <RoleIcon size={14} className={`${roleColor} flex-shrink-0`} strokeWidth={2.5} /> : <div className="w-4" />
@@ -227,8 +241,8 @@ export const PlayerCard = memo(({
                     className={`text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100 leading-tight`} 
                 />
                 
-                {/* CAREER STATS PREVIEW */}
-                {profile?.stats && profile.stats.matchesPlayed > 0 && (
+                {/* CAREER STATS PREVIEW - Only show if Linked */}
+                {isLinked && profile?.stats && profile.stats.matchesPlayed > 0 && (
                     <div className="flex items-center gap-2 mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
                         {profile.stats.totalPoints > 0 && (
                             <div className="flex items-center gap-0.5 text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 rounded">
@@ -244,8 +258,8 @@ export const PlayerCard = memo(({
                 )}
             </div>
             
-            {/* Role Icon (Secondary position if no avatar) or Fixed Pin */}
-            {profile?.avatar && RoleIcon && (
+            {/* Role Icon (Secondary position if avatar is present and Linked) */}
+            {isLinked && profile?.avatar && RoleIcon && (
                 <RoleIcon size={12} className={`${roleColor} flex-shrink-0 mr-1`} strokeWidth={2.5} />
             )}
             
@@ -278,12 +292,14 @@ export const PlayerCard = memo(({
     if (prev.locationId !== next.locationId || prev.isCompact !== next.isCompact || prev.forceDragStyle !== next.forceDragStyle || prev.isMenuActive !== next.isMenuActive) return false;
     
     // Check Player changes
-    const playerEq = prev.player.id === next.player.id && prev.player.name === next.player.name && prev.player.number === next.player.number && prev.player.skillLevel === next.player.skillLevel && prev.player.isFixed === next.player.isFixed && prev.player.profileId === next.player.profileId;
+    const playerEq = prev.player.id === next.player.id && prev.player.name === next.player.name && prev.player.number === next.player.number && prev.player.skillLevel === next.player.skillLevel && prev.player.isFixed === next.player.isFixed && prev.player.profileId === next.player.profileId && prev.player.role === next.player.role;
     if (!playerEq) return false;
 
-    // Check Profile changes (Stats might update)
+    // Check Profile changes (Stats might update, or Profile might be deleted -> undefined)
     if (prev.profile !== next.profile) {
+        // One is undefined and the other is defined -> changed
         if (!prev.profile || !next.profile) return false;
+        
         if (
             prev.profile.name !== next.profile.name || 
             prev.profile.skillLevel !== next.profile.skillLevel || 

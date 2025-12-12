@@ -1,7 +1,7 @@
 
 import { useCallback, useEffect, useReducer, useMemo, useState, useRef } from 'react';
 import { GameState, TeamId, GameConfig, SkillType, PlayerProfile, TeamColor, RotationMode, PlayerRole, Player, Team } from '../types';
-import { DEFAULT_CONFIG, SETS_TO_WIN_MATCH } from '../constants';
+import { DEFAULT_CONFIG, SETS_TO_WIN_MATCH, PLAYERS_PER_TEAM } from '../constants';
 import { gameReducer } from '../reducers/gameReducer';
 import { usePlayerProfiles } from './usePlayerProfiles';
 import { createPlayer, validateUniqueNumber } from '../utils/rosterLogic';
@@ -45,7 +45,7 @@ export const useVolleyGame = () => {
   const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
   
-  const { profiles, upsertProfile, deleteProfile, isReady: profilesReady, batchUpdateStats, findProfileByName } = usePlayerProfiles();
+  const { profiles, upsertProfile, deleteProfile: deleteProfileStore, isReady: profilesReady, batchUpdateStats, findProfileByName } = usePlayerProfiles();
   const { setSeconds, start: startTimer, stop: stopTimer, reset: resetTimer, getTime } = useTimer();
 
   const saveTimeoutRef = useRef<any>(null);
@@ -159,7 +159,7 @@ export const useVolleyGame = () => {
   const togglePlayerFixed = useCallback((id: string) => dispatch({ type: 'ROSTER_TOGGLE_FIXED', playerId: id }), []);
   const toggleTeamBench = useCallback((teamId: string) => dispatch({ type: 'ROSTER_TOGGLE_BENCH', teamId }), []);
   
-  // 🛡️ REFACTORED: ADD PLAYER WITH AUTO-LINKING & VALIDATION
+  // 🛡️ REFACTORED: ADD PLAYER WITH AUTO-LINKING
   const addPlayer = useCallback((name: string, target: string, number?: string, skill?: number, existingPlayer?: Player): { success: boolean, error?: string } => {
       let p: Player;
       
@@ -167,6 +167,16 @@ export const useVolleyGame = () => {
       let targetTeam: Team | undefined;
       if (target === 'A' || target === state.teamARoster.id || target === 'A_Reserves') targetTeam = state.teamARoster;
       else if (target === 'B' || target === state.teamBRoster.id || target === 'B_Reserves') targetTeam = state.teamBRoster;
+      else if (target === 'Queue') {
+          // Handle explicit "Queue" target which usually appends to the last team
+          if (state.queue.length > 0) {
+              const lastTeam = state.queue[state.queue.length - 1];
+              // Only validate against last team if it has space, otherwise a new team is created (empty) so no conflict
+              if (lastTeam.players.length < PLAYERS_PER_TEAM) {
+                  targetTeam = lastTeam;
+              }
+          }
+      }
       else {
           const qId = target.replace('_Reserves', '');
           targetTeam = state.queue.find(t => t.id === qId);
@@ -199,16 +209,8 @@ export const useVolleyGame = () => {
           }
       }
 
-      // VALIDATION: Strict Number Uniqueness
-      if (targetTeam && p.number) {
-          const isUnique = validateUniqueNumber(targetTeam, p.number);
-          if (!isUnique) {
-              return { 
-                  success: false, 
-                  error: `Number ${p.number} is already taken in this team.` 
-              };
-          }
-      }
+      // VALIDATION: REMOVED per user request
+      // We no longer check for unique numbers here.
 
       dispatch({ type: 'ROSTER_ADD_PLAYER', player: p, targetId: target });
       return { success: true };
@@ -370,6 +372,16 @@ export const useVolleyGame = () => {
       });
   }, [state]);
 
+  // 🛡️ WRAPPER: Deletes profile from store AND updates roster visual state
+  const deleteProfileWrapper = useCallback((id: string) => {
+      const deleted = deleteProfileStore(id);
+      if (deleted) {
+          // Trigger Reducer update to clear profileIds and roles from players
+          dispatch({ type: 'ROSTER_UNLINK_PROFILE', profileId: id });
+      }
+      return deleted;
+  }, [deleteProfileStore]);
+
   const loadStateFromFile = useCallback((newState: GameState) => {
       resetTimer();
       setSeconds(newState.matchDurationSeconds || 0);
@@ -407,7 +419,9 @@ export const useVolleyGame = () => {
     hasDeletedPlayers: state.deletedPlayerHistory.length > 0,
     togglePlayerFixed, commitDeletions, deletedCount: state.deletedPlayerHistory.length,
     setRotationMode, balanceTeams, sortTeam,
-    savePlayerToProfile, revertPlayerChanges, deleteProfile, upsertProfile, batchUpdateStats,
+    savePlayerToProfile, revertPlayerChanges, 
+    deleteProfile: deleteProfileWrapper, // Use wrapped version
+    upsertProfile, batchUpdateStats,
     toggleTeamBench, substitutePlayers, reorderQueue, 
     disbandTeam, restoreTeam, resetRosters, 
     relinkProfile, // Exported for use in UI Undo actions
@@ -429,7 +443,7 @@ export const useVolleyGame = () => {
     isTieBreak, stA, stB, setsNeededToWin, isDeuce,
     generateTeams, updateTeamName, updateTeamColor, updatePlayer, movePlayer, removePlayer,
     deletePlayer, addPlayer, restorePlayer, undoRemovePlayer, togglePlayerFixed, commitDeletions, setRotationMode, balanceTeams, sortTeam,
-    savePlayerToProfile, revertPlayerChanges, deleteProfile, upsertProfile, toggleTeamBench, substitutePlayers, profiles, reorderQueue, 
+    savePlayerToProfile, revertPlayerChanges, deleteProfileWrapper, upsertProfile, toggleTeamBench, substitutePlayers, profiles, reorderQueue, 
     disbandTeam, restoreTeam, resetRosters, relinkProfile,
     batchUpdateStats, loadStateFromFile
   ]);

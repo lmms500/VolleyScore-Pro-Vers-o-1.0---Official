@@ -17,21 +17,17 @@ export const findAllPlayers = (courtA: Team, courtB: Team, queue: Team[]) => {
 };
 
 /**
- * Validates that a number is unique within a specific team context.
- * @param team The team to check (checks both active players and reserves)
- * @param number The number to validate
- * @param ignorePlayerId Optional: ID of the player being edited (to allow keeping their own number)
+ * Strict check if a number is available in a specific team.
+ * UPDATED: Always returns TRUE to disable uniqueness enforcement per user request.
  */
+export const isNumberAvailable = (team: Team, number: string | undefined, excludePlayerId?: string): boolean => {
+    // Logic disabled: Always allow any number
+    return true;
+};
+
+// Deprecated legacy alias to prevent build breaks if imported elsewhere, but redirects to new logic
 export const validateUniqueNumber = (team: Team, number: string | undefined, ignorePlayerId?: string): boolean => {
-    if (!number || number.trim() === '') return true; // Empty numbers are allowed duplicates
-    
-    const allMembers = [...team.players, ...(team.reserves || [])];
-    const conflict = allMembers.find(p => 
-        p.id !== ignorePlayerId && 
-        p.number === number.trim()
-    );
-    
-    return !conflict;
+    return isNumberAvailable(team, number, ignorePlayerId);
 };
 
 export const createPlayer = (name: string, index: number, profileId?: string, skillLevel: number = 5, number?: string): Player => ({
@@ -39,7 +35,7 @@ export const createPlayer = (name: string, index: number, profileId?: string, sk
     name: sanitizeInput(name),
     profileId,
     skillLevel,
-    number,
+    number: number ? number.trim() : undefined,
     isFixed: false,
     originalIndex: index
 });
@@ -61,10 +57,9 @@ export const handleAddPlayer = (
 ): { courtA: Team, courtB: Team, queue: Team[] } => {
     
     // Duplicate Check (Name-based prevention within active game)
-    // Note: Number uniqueness is handled by the Hook before calling this
     const all = findAllPlayers(courtA, courtB, queue);
     if (all.some(p => p.name.toLowerCase() === newPlayer.name.toLowerCase())) {
-        return { courtA, courtB, queue }; // No-op if duplicate name in game
+        return { courtA, courtB, queue }; 
     }
 
     const addToTeamSmart = (team: Team): Team => {
@@ -88,7 +83,7 @@ export const handleAddPlayer = (
         return team;
     };
 
-    // FIX: Check against Team ID property, not just literal 'A'/'B'
+    // Check against Team ID property
     if (targetId === 'A' || targetId === courtA.id) {
         return { courtA: addToTeamSmart(courtA), courtB, queue };
     }

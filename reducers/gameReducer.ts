@@ -577,6 +577,40 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         return { ...state, teamARoster: newCourtA, teamBRoster: newCourtB, queue: newQueue };
     }
 
+    case 'ROSTER_UNLINK_PROFILE': {
+        // Visually reset players who were linked to the deleted profile ID
+        const targetId = action.profileId;
+        
+        const unlinkList = (list: Player[]): Player[] => list.map(p => {
+            if (p.profileId === targetId) {
+                return { 
+                    ...p, 
+                    profileId: undefined, 
+                    role: 'none' // Reset role to remove visual icon
+                };
+            }
+            return p;
+        });
+
+        const newCourtA = { 
+            ...state.teamARoster, 
+            players: unlinkList(state.teamARoster.players), 
+            reserves: unlinkList(state.teamARoster.reserves || []) 
+        };
+        const newCourtB = { 
+            ...state.teamBRoster, 
+            players: unlinkList(state.teamBRoster.players), 
+            reserves: unlinkList(state.teamBRoster.reserves || []) 
+        };
+        const newQueue = state.queue.map(t => ({ 
+            ...t, 
+            players: unlinkList(t.players), 
+            reserves: unlinkList(t.reserves || []) 
+        }));
+
+        return { ...state, teamARoster: newCourtA, teamBRoster: newCourtB, queue: newQueue };
+    }
+
     case 'ROSTER_QUEUE_REORDER': {
         const { fromIndex, toIndex } = action;
         if (fromIndex < 0 || fromIndex >= state.queue.length || toIndex < 0 || toIndex >= state.queue.length) return state;

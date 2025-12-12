@@ -218,6 +218,7 @@ export type GameAction =
   | { type: 'ROSTER_SORT'; teamId: string; criteria: 'name' | 'number' | 'skill' }
   | { type: 'ROSTER_GENERATE'; players: Player[] }
   | { type: 'ROSTER_SYNC_PROFILES'; profiles: Map<string, PlayerProfile> }
+  | { type: 'ROSTER_UNLINK_PROFILE'; profileId: string } // NEW: Cleans up deleted profiles from roster
   | { type: 'ROSTER_ENSURE_TEAM_IDS' }
   | { type: 'ROSTER_RESET_ALL' } // Nuclear Reset
   // NEW QUEUE ACTIONS

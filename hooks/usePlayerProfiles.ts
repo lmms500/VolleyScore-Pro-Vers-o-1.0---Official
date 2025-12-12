@@ -41,27 +41,28 @@ export const usePlayerProfiles = () => {
   }, [profiles]);
 
   /**
-   * Smart Upsert: Creates a new profile or UPDATES an existing one if name matches.
-   * This prevents duplicates when importing/saving rosters.
+   * Smart Upsert: 
+   * - If 'id' is provided, it forces an UPDATE on that specific profile.
+   * - If 'id' is NOT provided, it acts as CREATE, checking name for deduplication.
    */
   const upsertProfile = useCallback((name: string, skillLevel: number, id?: string, extras?: { number?: string, avatar?: string, role?: PlayerRole }): PlayerProfile => {
     const cleanName = name.trim();
     const now = Date.now();
     
-    // 1. Try to find existing profile by ID (Edit mode)
     let existing: PlayerProfile | undefined;
+    
+    // 1. EDIT MODE: Find strict match by ID
     if (id) {
         existing = profiles.get(id);
     } 
-    
-    // 2. If no ID provided (Create mode), check if name exists to deduplicate
-    if (!existing) {
+    // 2. CREATE MODE: Check for duplicate name
+    else {
         existing = findProfileByName(cleanName);
     }
     
     const newProfile: PlayerProfile = {
       id: existing?.id || uuidv4(),
-      name: cleanName, // Always use the new name (allows casing fixes)
+      name: cleanName, // Always update name
       skillLevel: Math.min(10, Math.max(1, skillLevel)),
       // Merge logic: Use new val if provided, else fall back to existing, else undefined
       number: extras?.number !== undefined ? extras.number : existing?.number,
