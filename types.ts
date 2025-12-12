@@ -14,16 +14,31 @@ export type PlayerId = string; // UUID v4
 
 export type SyncStatus = 'synced' | 'desynced' | 'unlinked';
 
+export type PlayerRole = 'setter' | 'hitter' | 'middle' | 'libero' | 'none';
+
 // Supported Theme Colors (Presets + Hex Strings)
 export type TeamColor = string; 
+
+// --- STATS ENGINE TYPES ---
+export interface ProfileStats {
+  matchesPlayed: number;
+  matchesWon: number;
+  totalPoints: number; // Total points contributed (kills + blocks + aces)
+  attacks: number;
+  blocks: number;
+  aces: number;
+  mvpCount: number;
+}
 
 // 1. O PERFIL MESTRE (Persistente / Banco de Dados Local)
 export interface PlayerProfile {
   id: PlayerId;
   name: string;       // Normalizado (trim)
-  skillLevel: number; // 1 a 10 (Slider) - Updated range
+  skillLevel: number; // 1 a 10 (Slider)
   number?: string;    // Jersey Number Preferido
   avatar?: string;    // Emoji ou Cor string
+  role?: PlayerRole;  // Player Role (Setter, etc)
+  stats?: ProfileStats; // Long-term statistics
   createdAt: number;
   lastUpdated: number;
 }
@@ -54,6 +69,7 @@ export interface Player {
   name: string;
   number?: string; // Jersey Number
   skillLevel: number; // 1 to 10
+  role?: PlayerRole; // New: Player Role in current game
   isFixed: boolean; // Se true, o jogador não é movido durante o balanceamento automático
   fixedSide?: 'A' | 'B' | null; // Se fixo, lembra de onde veio (opcional)
   originalIndex: number; // CRÍTICO: Para permitir o "Reset" da ordem exata de entrada
@@ -108,7 +124,7 @@ export type ActionLog =
       prevInSuddenDeath: boolean; // Required for undo consistency
       timestamp?: number;
       // Scout Metadata (Explicitly typed)
-      playerId?: string; 
+      playerId?: string | null; // UUID or null (Team Stat fallback)
       skill?: SkillType; 
     }
   | { 
@@ -201,6 +217,7 @@ export type GameAction =
   | { type: 'ROSTER_SORT'; teamId: string; criteria: 'name' | 'number' | 'skill' }
   | { type: 'ROSTER_GENERATE'; names: string[] }
   | { type: 'ROSTER_SYNC_PROFILES'; profiles: Map<string, PlayerProfile> }
+  | { type: 'ROSTER_ENSURE_TEAM_IDS' }
   // NEW QUEUE ACTIONS
   | { type: 'ROSTER_QUEUE_REORDER'; fromIndex: number; toIndex: number }
   | { type: 'ROSTER_DISBAND_TEAM'; teamId: string };

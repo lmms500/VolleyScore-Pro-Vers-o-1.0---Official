@@ -56,6 +56,10 @@ export const useGameAudio = (config: GameConfig) => {
     if (config.enableSound) audioService.playDeuce();
   };
 
+  const playUnlock = () => {
+    if (config.enableSound) audioService.playUnlock();
+  };
+
   return useMemo(() => ({
     playTap,
     playScore,
@@ -67,6 +71,7 @@ export const useGameAudio = (config: GameConfig) => {
     playMatchWin,
     playSuddenDeath,
     playSwap,
-    playDeuce
+    playDeuce,
+    playUnlock
   }), [config.enableSound, config.lowGraphics]);
 };

@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useReducer, useMemo } from 'react';
-import { GameState, TeamId, GameConfig, SkillType, PlayerProfile, TeamColor, RotationMode } from '../types';
+import { GameState, TeamId, GameConfig, SkillType, PlayerProfile, TeamColor, RotationMode, PlayerRole } from '../types';
 import { DEFAULT_CONFIG, SETS_TO_WIN_MATCH } from '../constants';
 import { gameReducer } from '../reducers/gameReducer';
 import { usePlayerProfiles } from './usePlayerProfiles';
@@ -41,7 +41,7 @@ const INITIAL_STATE: GameState = {
 
 export const useVolleyGame = () => {
   const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
-  const { profiles, upsertProfile, deleteProfile, isReady: profilesReady } = usePlayerProfiles();
+  const { profiles, upsertProfile, deleteProfile, isReady: profilesReady, batchUpdateStats } = usePlayerProfiles();
   const { setSeconds, start: startTimer, stop: stopTimer, reset: resetTimer, getTime } = useTimer();
 
   // --- PERSISTENCE: Load from LocalStorage ---
@@ -98,6 +98,10 @@ export const useVolleyGame = () => {
                 dispatch({ type: 'APPLY_SETTINGS', config: { ...DEFAULT_CONFIG, reducedMotion: true }, shouldReset: false });
             }
         }
+        
+        // Ensure Team IDs are UUIDs (Migration)
+        dispatch({ type: 'ROSTER_ENSURE_TEAM_IDS' });
+
       } catch (e) {
         console.error("Failed to load game state from localStorage.", e);
       }
@@ -195,6 +199,8 @@ export const useVolleyGame = () => {
                   if (profile.number && !number) {
                       p.number = profile.number;
                   }
+                  // CRITICAL: Ensure role is propagated from profile to instance
+                  p.role = profile.role;
                   break;
               }
           }
@@ -224,7 +230,7 @@ export const useVolleyGame = () => {
   }, []);
 
   // Profile Helpers
-  const savePlayerToProfile = useCallback((playerId: string, overrides?: { name?: string, number?: string, avatar?: string, skill?: number }) => {
+  const savePlayerToProfile = useCallback((playerId: string, overrides?: { name?: string, number?: string, avatar?: string, skill?: number, role?: PlayerRole }) => {
       let p;
       const all = [
         ...state.teamARoster.players, ...(state.teamARoster.reserves || []),
@@ -238,7 +244,8 @@ export const useVolleyGame = () => {
           const numberToUse = overrides?.number !== undefined ? overrides.number : p.number;
           // Allow overriding skill level, otherwise use current player skill
           const skillToUse = overrides?.skill !== undefined ? overrides.skill : p.skillLevel;
-          const extras = { number: numberToUse, avatar: overrides?.avatar };
+          const roleToUse = overrides?.role !== undefined ? overrides.role : p.role;
+          const extras = { number: numberToUse, avatar: overrides?.avatar, role: roleToUse };
           
           const profile = upsertProfile(nameToUse, skillToUse, p.profileId, extras);
           
@@ -249,7 +256,8 @@ export const useVolleyGame = () => {
                   profileId: profile.id,
                   name: profile.name,
                   number: profile.number,
-                  skillLevel: profile.skillLevel 
+                  skillLevel: profile.skillLevel,
+                  role: profile.role
               } 
           });
       }
@@ -262,7 +270,7 @@ export const useVolleyGame = () => {
       if(p && p.profileId) {
           const prof = profiles.get(p.profileId);
           if(prof) {
-              dispatch({ type: 'ROSTER_UPDATE_PLAYER', playerId, updates: { name: prof.name, skillLevel: prof.skillLevel, number: prof.number } });
+              dispatch({ type: 'ROSTER_UPDATE_PLAYER', playerId, updates: { name: prof.name, skillLevel: prof.skillLevel, number: prof.number, role: prof.role } });
           }
       }
   }, [state, profiles]);
@@ -317,6 +325,7 @@ export const useVolleyGame = () => {
     revertPlayerChanges,
     deleteProfile,
     upsertProfile,
+    batchUpdateStats,
     toggleTeamBench,
     substitutePlayers,
     reorderQueue,
@@ -337,6 +346,6 @@ export const useVolleyGame = () => {
     isTieBreak, statusA, statusB, pointsToWinCurrentSet, setsNeededToWin, isDeuce,
     generateTeams, updateTeamName, updateTeamColor, updatePlayerName, updatePlayerNumber, updatePlayerSkill, movePlayer, removePlayer,
     deletePlayer, addPlayer, undoRemovePlayer, togglePlayerFixed, commitDeletions, setRotationMode, balanceTeams, sortTeam,
-    savePlayerToProfile, revertPlayerChanges, deleteProfile, upsertProfile, toggleTeamBench, substitutePlayers, profiles, reorderQueue, disbandTeam
+    savePlayerToProfile, revertPlayerChanges, deleteProfile, upsertProfile, toggleTeamBench, substitutePlayers, profiles, reorderQueue, disbandTeam, batchUpdateStats
   ]);
 };

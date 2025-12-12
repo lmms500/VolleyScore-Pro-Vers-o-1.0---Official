@@ -1,5 +1,4 @@
-
-import React, { memo, useState, useCallback, useRef } from 'react';
+import React, { memo, useState, useCallback } from 'react';
 import { Team, TeamId, SkillType, GameConfig, TeamColor } from '../types';
 import { Volleyball, Zap, Timer, Skull, TrendingUp, Trophy } from 'lucide-react';
 import { useScoreGestures } from '../hooks/useScoreGestures';
@@ -13,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { stampVariants, springPremium, pulseHeartbeat } from '../utils/animations';
 import { ScoutModal } from './modals/ScoutModal';
 import { resolveTheme } from '../utils/colors';
+import { useCollider } from '../hooks/useCollider';
 
 interface ScoreCardNormalProps {
   teamId: TeamId;
@@ -50,7 +50,16 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
   const [isInteractionLocked, setIsInteractionLocked] = useState(false);
   const [isTouching, setIsTouching] = useState(false);
   const [ripple, setRipple] = useState<{ x: number, y: number, id: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Specific Physics Colliders for precise interaction
+  // These refs track the *physical* location of elements for the confetti engine
+  const headerRef = useCollider<HTMLHeadingElement>(`sc-header-${teamId}`);
+  const badgeRef = useCollider<HTMLDivElement>(`sc-badge-${teamId}`);
+  const numberRef = useCollider<HTMLDivElement>(`sc-number-${teamId}`);
+  const footerRef = useCollider<HTMLButtonElement>(`sc-footer-${teamId}`);
+  
+  // Generic container ref for ripple effect calculation only
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   const handleScoutClose = useCallback(() => {
      setShowScout(false);
@@ -145,6 +154,7 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
       <div className="flex flex-col h-full w-full relative z-10 py-1 px-2 justify-between items-center overflow-visible">
         
         {/* HEADER: Sets & Name */}
+        {/* Important: No Ref on this container to avoid blocking confetti */}
         <div className="flex flex-col items-center justify-center w-full flex-none order-1 mt-2 space-y-1 relative z-30">
             <div className="flex gap-2 mb-1">
                 {[...Array(setsNeededToWin)].map((_, i) => (
@@ -173,9 +183,15 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
                     haptics.impact('light');
                 }}
             >
-                <motion.h2 layout className="font-black uppercase text-center text-base md:text-xl text-slate-800 dark:text-slate-200 tracking-wider truncate min-w-0">
+                {/* COLLIDER ON TEXT ONLY: This ensures confetti flows around the name, not the whole header bar */}
+                <motion.h2 
+                    ref={headerRef}
+                    layout 
+                    className="font-black uppercase text-center text-base md:text-xl text-slate-800 dark:text-slate-200 tracking-wider truncate min-w-0 w-fit mx-auto max-w-full"
+                >
                     {team?.name || ''}
                 </motion.h2>
+                
                 <AnimatePresence>
                   {isServing && (
                     <motion.div
@@ -193,10 +209,12 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
         </div>
 
         {/* BADGE AREA */}
+        {/* Important: No Ref on this full-width container */}
         <div className="order-2 min-h-[24px] flex items-center justify-center w-full my-1 flex-none">
             <AnimatePresence mode="wait">
                 {badgeConfig && (
                     <motion.div 
+                        ref={badgeRef} // COLLIDER MOVED HERE: Only the badge pill is solid
                         variants={stampVariants}
                         initial="hidden" animate="visible" exit="exit"
                         className={`px-3 py-1 rounded-xl border backdrop-blur-md font-bold uppercase tracking-widest text-[9px] flex items-center gap-1.5 shadow-sm ${badgeConfig.className}`}
@@ -276,23 +294,28 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
                         animate={(!config.lowGraphics && isCritical) ? "pulse" : "idle"}
                         className="flex items-center justify-center w-full overflow-visible"
                     >
-                        <ScoreTicker 
-                            value={score}
-                            className={`
-                                font-black tracking-tighter outline-none select-none
-                                text-[20vw] sm:text-[15vw] md:text-9xl landscape:text-7xl landscape:xl:text-9xl leading-none
-                                text-slate-900 dark:text-white
-                                ${isMatchPoint ? 'drop-shadow-[0_0_30px_rgba(251,191,36,0.8)]' : ''}
-                            `}
-                        />
+                        {/* COLLIDER ON TEXT ONLY: Confetti flows through the gaps around the number */}
+                        <div ref={numberRef} className="w-fit mx-auto relative">
+                            <ScoreTicker 
+                                value={score}
+                                className={`
+                                    font-black tracking-tighter outline-none select-none
+                                    text-[20vw] sm:text-[15vw] md:text-9xl landscape:text-7xl landscape:xl:text-9xl leading-none
+                                    text-slate-900 dark:text-white
+                                    ${isMatchPoint ? 'drop-shadow-[0_0_30px_rgba(251,191,36,0.8)]' : ''}
+                                `}
+                            />
+                        </div>
                     </motion.div>
                 </div>
             </div>
         </div>
 
         {/* FOOTER: Timeouts */}
+        {/* Important: No Ref on this full-width container */}
         <div className="order-4 w-full flex justify-center pb-2 flex-none">
            <button 
+             ref={footerRef} // COLLIDER MOVED HERE: Only the button itself is solid
              type="button"
              onClick={(e) => { 
                  e.stopPropagation(); 

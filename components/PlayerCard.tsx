@@ -2,8 +2,8 @@
 import React, { memo, useMemo, useCallback } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Player, PlayerProfile } from '../types';
-import { Pin, Save, Check, MoreVertical, Hash, Edit2, RefreshCw } from 'lucide-react';
+import { Player, PlayerProfile, PlayerRole } from '../types';
+import { Pin, Save, Check, MoreVertical, Hash, Edit2, RefreshCw, Shield, Hand, Zap, Target } from 'lucide-react';
 import { SkillSlider } from './ui/SkillSlider';
 import { useHaptics } from '../hooks/useHaptics';
 
@@ -15,7 +15,7 @@ interface PlayerCardProps {
     onUpdateNumber: (id: string, number: string) => void;
     onUpdateSkill: (id: string, skill: number) => void;
     // CRITICAL: This function must handle the "Handshake" (returning profileId to roster)
-    onSaveProfile: (id: string, overrides: { name: string, number?: string, avatar?: string, skill: number }) => void;
+    onSaveProfile: (id: string, overrides: { name: string, number?: string, avatar?: string, skill: number, role?: PlayerRole }) => void;
     onRequestProfileEdit: (id: string) => void;
     onToggleMenu: (playerId: string, targetElement: HTMLElement) => void;
     isMenuActive: boolean;
@@ -139,7 +139,8 @@ export const PlayerCard = memo(({
     return (
         profile.name !== player.name || 
         profile.skillLevel !== player.skillLevel || 
-        (profile.number || '') !== (player.number || '')
+        (profile.number || '') !== (player.number || '') ||
+        (profile.role || 'none') !== (player.role || 'none')
     );
   }, [player, profile, isLinked]);
 
@@ -158,7 +159,8 @@ export const PlayerCard = memo(({
               name: player.name, 
               number: player.number, 
               avatar: profile?.avatar, 
-              skill: player.skillLevel 
+              skill: player.skillLevel,
+              role: player.role
           });
           haptics.notification('success');
           if (onShowToast) onShowToast("Profile Synced", 'success');
@@ -177,12 +179,25 @@ export const PlayerCard = memo(({
       onToggleMenu(player.id, e.currentTarget);
   };
 
+  // --- ROLE INDICATOR ---
+  const activeRole = profile?.role || player.role || 'none';
+  let RoleIcon = null;
+  let roleColor = "";
+  
+  if (activeRole === 'setter') { RoleIcon = Hand; roleColor = "text-amber-500"; }
+  else if (activeRole === 'hitter') { RoleIcon = Zap; roleColor = "text-rose-500"; }
+  else if (activeRole === 'middle') { RoleIcon = Target; roleColor = "text-indigo-500"; }
+  else if (activeRole === 'libero') { RoleIcon = Shield; roleColor = "text-emerald-500"; }
+
   // --- VISUAL STYLES ---
 
   const containerClass = forceDragStyle
     ? `bg-white dark:bg-slate-800 border-2 border-indigo-500 shadow-2xl z-50 ring-4 ring-indigo-500/20`
     : `bg-white/60 dark:bg-white/[0.04] hover:bg-white/80 dark:hover:bg-white/[0.08] border-transparent hover:border-black/5 dark:hover:border-white/10 transition-all duration-200`;
 
+  // Libero gets special background highlight if configured
+  const specialClass = activeRole === 'libero' && !forceDragStyle ? 'bg-emerald-500/5 dark:bg-emerald-500/5 border-emerald-500/10' : '';
+  
   const fixedClass = player.isFixed ? 'bg-amber-500/5 border-amber-500/20 shadow-sm shadow-amber-500/5' : '';
   const reserveClass = locationId.includes('_Reserves') ? 'border-dashed border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-black/20' : '';
 
@@ -208,7 +223,7 @@ export const PlayerCard = memo(({
   return (
     <div 
         ref={setNodeRef} style={style} {...attributes} {...listeners} data-player-card="true" 
-        className={`group relative flex items-center justify-between rounded-2xl border touch-manipulation py-1.5 px-2.5 min-h-[54px] ${forceDragStyle ? containerClass : (locationId.includes('_Reserves') ? reserveClass : (player.isFixed ? fixedClass : containerClass))} ${!player.isFixed && !isMenuActive ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`group relative flex items-center justify-between rounded-2xl border touch-manipulation py-1.5 px-2.5 min-h-[54px] ${forceDragStyle ? containerClass : (locationId.includes('_Reserves') ? reserveClass : (player.isFixed ? fixedClass : (specialClass || containerClass)))} ${!player.isFixed && !isMenuActive ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
         {/* Left: Number (Fixed Width) */}
         <div className="flex items-center gap-2 flex-shrink-0 self-center">
@@ -226,6 +241,11 @@ export const PlayerCard = memo(({
                 onSave={(v) => onUpdateName(player.id, v)} 
                 className={`text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100 leading-tight`} 
             />
+            
+            {/* Role Icon */}
+            {RoleIcon && (
+                <RoleIcon size={12} className={`${roleColor} flex-shrink-0`} strokeWidth={2.5} />
+            )}
             
             {player.isFixed && <Pin size={12} className="text-amber-500 flex-shrink-0" fill="currentColor" />}
         </div>
@@ -263,7 +283,7 @@ export const PlayerCard = memo(({
     // Check Profile changes (for sync status)
     if (prev.profile !== next.profile) {
         if (!prev.profile || !next.profile) return false;
-        if (prev.profile.name !== next.profile.name || prev.profile.skillLevel !== next.profile.skillLevel || prev.profile.number !== next.profile.number || prev.profile.avatar !== next.profile.avatar) return false;
+        if (prev.profile.name !== next.profile.name || prev.profile.skillLevel !== next.profile.skillLevel || prev.profile.number !== next.profile.number || prev.profile.avatar !== next.profile.avatar || prev.profile.role !== next.profile.role) return false;
     }
     return true;
 });

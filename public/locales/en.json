@@ -43,6 +43,22 @@
     "set_point": "SET POINT",
     "tie_break": "TIE BREAK"
   },
+  "roles": {
+    "setter": "Setter",
+    "hitter": "Hitter",
+    "libero": "Libero",
+    "middle": "Middle",
+    "abbr": {
+      "setter": "Set",
+      "hitter": "Hit",
+      "libero": "Lib",
+      "middle": "Mid"
+    }
+  },
+  "easterEgg": {
+    "title": "Just kidding! Have fun! 🎉",
+    "subtitle": "Developer Mode? Nope."
+  },
   "notifications": {
     "matchSaved": "Match Saved",
     "matchSavedSub": "History updated",

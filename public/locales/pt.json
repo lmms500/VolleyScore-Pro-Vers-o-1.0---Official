@@ -43,6 +43,22 @@
     "set_point": "SET POINT",
     "tie_break": "TIE BREAK"
   },
+  "roles": {
+    "setter": "Levantador",
+    "hitter": "Ponteiro/Oposto",
+    "libero": "Líbero",
+    "middle": "Central",
+    "abbr": {
+      "setter": "Lev",
+      "hitter": "Pont",
+      "libero": "Lib",
+      "middle": "Cen"
+    }
+  },
+  "easterEgg": {
+    "title": "Brincadeirinha! Divirta-se! 🎉",
+    "subtitle": "Modo Desenvolvedor? Nop."
+  },
   "notifications": {
     "matchSaved": "Partida Salva",
     "matchSavedSub": "Histórico atualizado",
@@ -75,7 +91,7 @@
       "visuals": "Visual",
       "audio": "Áudio e Inteligência",
       "sync": "Sincronização Nuvem",
-      "ai": "Inteligência Gemini",
+      "ai": "Inteligencia Gemini",
       "install": "Instalação e Atualizações"
     },
     "appearance": {

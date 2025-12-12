@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -6,7 +5,8 @@ import { useTranslation } from '../../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trophy, Hand, RefreshCw, Share, Download, 
-  ChevronRight, Check, PlusSquare, Smartphone 
+  ChevronRight, Check, PlusSquare, Smartphone,
+  Zap, Shield, Target, Users
 } from 'lucide-react';
 import { usePlatform } from '../../hooks/usePlatform';
 
@@ -85,11 +85,30 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       id: 'features',
       component: (
         <Slide 
-          title={t('tutorial.features.title')} 
-          desc={t('tutorial.features.desc')} 
-          icon={RefreshCw} 
+          title="Roles & Strategy" 
+          desc="Assign specialized roles to players: Setters, Hitters, Liberos. Use stats to track performance." 
+          icon={Users} 
           color="bg-emerald-500"
-        />
+        >
+            <div className="grid grid-cols-4 gap-3 mt-4 w-full px-8">
+                <div className="flex flex-col items-center gap-1">
+                    <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><Hand size={16} /></div>
+                    <span className="text-[9px] font-bold uppercase text-slate-400">{t('roles.abbr.setter')}</span>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                    <div className="p-2 bg-rose-500/10 rounded-lg text-rose-500"><Zap size={16} /></div>
+                    <span className="text-[9px] font-bold uppercase text-slate-400">{t('roles.abbr.hitter')}</span>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                    <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500"><Shield size={16} /></div>
+                    <span className="text-[9px] font-bold uppercase text-slate-400">{t('roles.abbr.libero')}</span>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                    <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-500"><Target size={16} /></div>
+                    <span className="text-[9px] font-bold uppercase text-slate-400">{t('roles.abbr.middle')}</span>
+                </div>
+            </div>
+        </Slide>
       )
     },
     // 4. Install (ONLY IF NOT NATIVE)
@@ -142,7 +161,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       showCloseButton={false}
       persistent={true}
     >
-      <div className="min-h-[350px] flex flex-col justify-between">
+      <div className="min-h-[400px] flex flex-col justify-between">
         
         {/* Slide Content */}
         <div className="flex-1 flex items-center justify-center">

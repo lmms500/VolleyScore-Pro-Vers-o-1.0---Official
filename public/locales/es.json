@@ -43,6 +43,22 @@
     "set_point": "SET POINT",
     "tie_break": "TIE BREAK"
   },
+  "roles": {
+    "setter": "Armador",
+    "hitter": "Rematador",
+    "libero": "Líbero",
+    "middle": "Central",
+    "abbr": {
+      "setter": "Arm",
+      "hitter": "Rem",
+      "libero": "Lib",
+      "middle": "Cen"
+    }
+  },
+  "easterEgg": {
+    "title": "¡Es broma! ¡Disfruta! 🎉",
+    "subtitle": "¿Modo Desarrollador? Nop."
+  },
   "notifications": {
     "matchSaved": "Partido Guardado",
     "matchSavedSub": "Historial actualizado",
@@ -292,7 +308,7 @@
     "back": "Volver a Jugadores",
     "skills": {
       "attack": "Ataque",
-      "block": "Bloqueio",
+      "block": "Bloqueo",
       "ace": "Ace",
       "opponent_error": "Error Rival"
     }

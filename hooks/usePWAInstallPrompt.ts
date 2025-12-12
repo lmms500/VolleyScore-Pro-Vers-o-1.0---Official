@@ -1,4 +1,6 @@
+
 import { useState, useEffect, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
 
 interface IBeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -13,22 +15,30 @@ export const usePWAInstallPrompt = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<IBeforeInstallPromptEvent | null>(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  
+  // Guard: Check Native Environment immediately
+  const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
-    // Detect iOS
+    // 🛡️ CRITICAL: If Native, strictly disable all PWA prompt logic
+    if (isNative) {
+        setIsIOS(false);
+        setIsStandalone(true); // Treat as "already installed" to suppress prompts
+        return;
+    }
+
+    // Detect iOS (Only relevant if Web)
     const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIPad = navigator.maxTouchPoints > 0 && /macintosh/.test(userAgent); // iPadOS 13+
+    const isIPad = navigator.maxTouchPoints > 0 && /macintosh/.test(userAgent);
     setIsIOS(/iphone|ipad|ipod/.test(userAgent) || isIPad);
 
-    // Detect Standalone Mode (Already Installed)
+    // Detect Standalone Mode
     const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     setIsStandalone(isStandaloneMode);
 
     // Capture install prompt
     const handler = (e: Event) => {
-      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e as IBeforeInstallPromptEvent);
     };
 
@@ -37,15 +47,14 @@ export const usePWAInstallPrompt = () => {
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
     };
-  }, []);
+  }, [isNative]);
 
   const promptInstall = useCallback(async () => {
-    if (!deferredPrompt) return;
+    // Safety check
+    if (isNative || !deferredPrompt) return;
 
-    // Show the install prompt
     await deferredPrompt.prompt();
 
-    // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
     
     if (outcome === 'accepted') {
@@ -54,12 +63,12 @@ export const usePWAInstallPrompt = () => {
     } else {
       console.log('User dismissed the install prompt');
     }
-  }, [deferredPrompt]);
+  }, [deferredPrompt, isNative]);
 
   return {
-    isInstallable: !!deferredPrompt && !isStandalone,
-    isIOS: isIOS && !isStandalone,
-    isStandalone,
+    isInstallable: !!deferredPrompt && !isStandalone && !isNative,
+    isIOS: isIOS && !isStandalone && !isNative,
+    isStandalone: isStandalone || isNative, // Native apps consider themselves "installed"
     promptInstall
   };
 };

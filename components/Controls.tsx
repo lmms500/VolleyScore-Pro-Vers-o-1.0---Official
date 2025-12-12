@@ -3,6 +3,7 @@ import React, { memo } from 'react';
 import { RotateCcw, ArrowLeftRight, Settings, Users, Undo2, Maximize2, History, Mic, MicOff } from 'lucide-react';
 import { useTranslation } from '../contexts/LanguageContext';
 import { motion } from 'framer-motion';
+import { useCollider } from '../hooks/useCollider';
 
 interface ControlsProps {
   onUndo: () => void;
@@ -52,10 +53,15 @@ export const Controls: React.FC<ControlsProps> = memo(({
     voiceEnabled, isListening, onToggleListening 
 }) => {
   const { t } = useTranslation();
+  
+  // Register collider on the visual pill ONLY, not the container with padding
+  const controlsRef = useCollider('controls-bar'); 
 
   return (
     <div className="w-full flex justify-center px-2 sm:px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-safe">
-      <div className="
+      <div 
+        ref={controlsRef}
+        className="
         relative
         w-auto max-w-full
         bg-white/60 dark:bg-[#0f172a]/60 backdrop-blur-xl 

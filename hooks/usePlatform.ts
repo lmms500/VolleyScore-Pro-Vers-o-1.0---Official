@@ -3,9 +3,9 @@ import { useState, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 
 export interface PlatformState {
-  isNative: boolean;      // True if Android/iOS App (Capacitor)
-  isPWA: boolean;         // True if Standalone Web App (Home Screen)
-  isWeb: boolean;         // True if Browser Tab
+  isNative: boolean;      // True ONLY if running in Capacitor (Android/iOS app)
+  isPWA: boolean;         // True ONLY if running in Browser AND Installed (Standalone)
+  isBrowser: boolean;     // True ONLY if running in Browser AND Not Installed (Regular Tab)
   isIOS: boolean;
   isAndroid: boolean;
   platform: 'ios' | 'android' | 'web';
@@ -15,7 +15,7 @@ export const usePlatform = (): PlatformState => {
   const [state, setState] = useState<PlatformState>({
     isNative: false,
     isPWA: false,
-    isWeb: true,
+    isBrowser: true,
     isIOS: false,
     isAndroid: false,
     platform: 'web'
@@ -25,16 +25,25 @@ export const usePlatform = (): PlatformState => {
     const isNative = Capacitor.isNativePlatform();
     const platform = Capacitor.getPlatform(); // 'web', 'ios', 'android'
     
-    // Detect PWA Standalone Mode
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
-                         (window.navigator as any).standalone === true;
+    // Robust PWA Detection
+    const isStandalone = 
+      window.matchMedia('(display-mode: standalone)').matches || 
+      (window.navigator as any).standalone === true || 
+      document.referrer.includes('android-app://');
+
+    // Platform Specifics
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIOS = /iphone|ipad|ipod/.test(userAgent);
+    const isAndroid = /android/.test(userAgent);
 
     setState({
       isNative,
-      isPWA: isStandalone && !isNative, // PWA is standalone ONLY if not native wrapper
-      isWeb: !isNative && !isStandalone,
-      isIOS: platform === 'ios',
-      isAndroid: platform === 'android',
+      // A PWA is only a PWA if it's NOT native wrapping content
+      isPWA: isStandalone && !isNative,
+      // A Browser is only a Browser if it's NOT native and NOT standalone
+      isBrowser: !isNative && !isStandalone,
+      isIOS: isIOS, // Keeps UA detection for styling quirks, but use isNative for logic
+      isAndroid: isAndroid,
       platform: platform as 'ios' | 'android' | 'web'
     });
   }, []);

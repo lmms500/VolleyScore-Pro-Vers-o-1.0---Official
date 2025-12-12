@@ -2,9 +2,9 @@
 import React, { useState, useMemo, useEffect, useCallback, memo, useRef } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { Team, Player, RotationMode, PlayerProfile, TeamColor, ActionLog } from '../../types';
+import { Team, Player, RotationMode, PlayerProfile, TeamColor, ActionLog, PlayerRole } from '../../types';
 import { calculateTeamStrength } from '../../utils/balanceUtils';
-import { Pin, Trash2, Shuffle, Edit2, Plus, Undo2, Ban, Star, Save, RefreshCw, AlertCircle, User, Upload, List, Hash, Users, Layers, Search, X, ListFilter, ArrowDownAZ, ArrowDown01, ArrowUpWideNarrow, LogOut, ChevronRight, ChevronLeft, Armchair, ArrowRightLeft, ArrowUp, MoreVertical, Unlock, RefreshCcw, PlusCircle, ArrowUpCircle, Activity, ArrowDown, Check, ChevronsUp, ChevronUp, ChevronDown, ListOrdered } from 'lucide-react';
+import { Pin, Trash2, Shuffle, Edit2, Plus, Undo2, Ban, Star, Save, RefreshCw, AlertCircle, User, Upload, List, Hash, Users, Layers, Search, X, ListFilter, ArrowDownAZ, ArrowDown01, ArrowUpWideNarrow, LogOut, ChevronRight, ChevronLeft, Armchair, ArrowRightLeft, ArrowUp, MoreVertical, Unlock, RefreshCcw, PlusCircle, ArrowUpCircle, Activity, ArrowDown, Check, ChevronsUp, ChevronUp, ChevronDown, ListOrdered, Hand, Zap, Target, Shield } from 'lucide-react';
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors, KeyboardSensor, TouchSensor, useDndMonitor, useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { createPortal } from 'react-dom';
@@ -42,7 +42,7 @@ interface TeamManagerModalProps {
   onUpdatePlayerName: (playerId: string, name: string) => void;
   onUpdatePlayerNumber: (playerId: string, number: string) => void;
   onUpdatePlayerSkill: (playerId: string, skill: number) => void;
-  onSaveProfile: (playerId: string, overrides?: { name?: string, number?: string, avatar?: string, skill?: number }) => void;
+  onSaveProfile: (playerId: string, overrides?: { name?: string, number?: string, avatar?: string, skill?: number, role?: PlayerRole }) => void;
   onRevertProfile: (playerId: string) => void;
   onAddPlayer: (name: string, target: 'A' | 'B' | 'Queue' | 'A_Reserves' | 'B_Reserves' | string, number?: string, skill?: number) => void;
   onUndoRemove: () => void;
@@ -51,7 +51,7 @@ interface TeamManagerModalProps {
   deletedCount: number;
   profiles: Map<string, PlayerProfile>;
   deleteProfile?: (id: string) => void;
-  upsertProfile?: (name: string, skill: number, id?: string, extras?: { number?: string, avatar?: string }) => PlayerProfile;
+  upsertProfile?: (name: string, skill: number, id?: string, extras?: { number?: string, avatar?: string, role?: PlayerRole }) => PlayerProfile;
   onSortTeam: (teamId: string, criteria: 'name' | 'number' | 'skill') => void; 
   toggleTeamBench: (teamId: string) => void;
   substitutePlayers: (teamId: string, playerInId: string, playerOutId: string) => void;
@@ -122,34 +122,14 @@ const AddPlayerInput = memo(({ onAdd, disabled, customLabel }: { onAdd: (name: s
     const inputRef = React.useRef<HTMLInputElement>(null);
     const containerRef = React.useRef<HTMLDivElement>(null);
 
-    // Auto-focus when opening
     useEffect(() => { if(isOpen) inputRef.current?.focus(); }, [isOpen]);
 
-    // Close on click outside or scroll
     useEffect(() => {
         if (!isOpen) return;
-
-        const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-
-        const handleScroll = () => {
-            if (isOpen) setIsOpen(false);
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('touchstart', handleClickOutside);
-        window.addEventListener(SCROLL_EVENT, handleScroll);
-        window.addEventListener('scroll', handleScroll, { capture: true });
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('touchstart', handleClickOutside);
-            window.removeEventListener(SCROLL_EVENT, handleScroll);
-            window.removeEventListener('scroll', handleScroll, { capture: true });
-        };
+        const handleClickOutside = (event: MouseEvent | TouchEvent) => { if (containerRef.current && !containerRef.current.contains(event.target as Node)) { setIsOpen(false); } };
+        const handleScroll = () => { if (isOpen) setIsOpen(false); };
+        document.addEventListener('mousedown', handleClickOutside); document.addEventListener('touchstart', handleClickOutside); window.addEventListener(SCROLL_EVENT, handleScroll); window.addEventListener('scroll', handleScroll, { capture: true });
+        return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('touchstart', handleClickOutside); window.removeEventListener(SCROLL_EVENT, handleScroll); window.removeEventListener('scroll', handleScroll, { capture: true }); };
     }, [isOpen]);
 
     const submit = () => { if(name.trim()) { onAdd(name.trim(), number.trim() || undefined, skill); setName(''); setNumber(''); setSkill(5); } inputRef.current?.focus(); };
@@ -171,23 +151,17 @@ const AddPlayerInput = memo(({ onAdd, disabled, customLabel }: { onAdd: (name: s
     return <button onClick={() => !disabled && setIsOpen(true)} disabled={disabled} className={`mt-2 w-full py-3 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest rounded-xl border border-dashed transition-all ${disabled ? 'border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed' : 'border-slate-300 dark:border-slate-700 text-slate-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10'}`} >{disabled ? <><Ban size={14} /> {t('common.full')}</> : <>{isBenchLabel ? <Armchair size={14} className="text-emerald-500" /> : <Plus size={14} />} {labelContent}</>}</button>;
 });
 
-type SortCriteria = 'name' | 'number' | 'skill' | 'original';
-type SortDirection = 'asc' | 'desc';
-
 const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamColor, onUpdatePlayerName, onUpdatePlayerNumber, onUpdateSkill, onSaveProfile, onAddPlayer, onKnockoutRequest, usedColors, isQueue = false, onMove, toggleTeamBench, substitutePlayers, statsMap, onRequestProfileEdit, onTogglePlayerMenu, activePlayerMenuId, isNext = false, validateNumber, onDisband, onReorder, queueIndex, queueSize, isDragOver, onShowToast }: any) => {
   const { t } = useTranslation();
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'main' | 'reserves'>('main'); 
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
-  const [sortConfig, setSortConfig] = useState<{ criteria: SortCriteria, direction: SortDirection }>({ criteria: 'original', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState<{ criteria: 'name' | 'number' | 'skill' | 'original', direction: 'asc' | 'desc' }>({ criteria: 'original', direction: 'asc' });
   const colorConfig = resolveTheme(team.color);
 
   const listId = viewMode === 'main' ? id : `${id}_Reserves`;
 
-  const { setNodeRef: droppableRef } = useDroppable({
-      id: listId,
-      data: { type: 'container', containerId: listId },
-  });
+  const { setNodeRef: droppableRef } = useDroppable({ id: listId, data: { type: 'container', containerId: listId } });
 
   useEffect(() => { if (!team.hasActiveBench && viewMode === 'reserves') setViewMode('main'); }, [team.hasActiveBench]);
 
@@ -216,7 +190,7 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
   const toggleView = () => setViewMode(prev => prev === 'main' ? 'reserves' : 'main');
   const handleAdd = useCallback((n: string, num?: string, s?: number) => { onAddPlayer(n, viewMode === 'main' ? id : `${id}_Reserves`, num, s); }, [onAddPlayer, id, viewMode]);
   const handleSubstitution = (pIn: string, pOut: string) => { substitutePlayers(id, pIn, pOut); };
-  const applySort = (criteria: SortCriteria) => { setSortConfig(prev => ({ criteria, direction: prev.criteria === criteria && prev.direction === 'asc' ? 'desc' : 'asc' })); setShowSortMenu(false); };
+  const applySort = (criteria: any) => { setSortConfig(prev => ({ criteria, direction: prev.criteria === criteria && prev.direction === 'asc' ? 'desc' : 'asc' })); setShowSortMenu(false); };
 
   const bgClass = viewMode === 'reserves' ? 'bg-slate-200/50 dark:bg-white/[0.05] border-dashed border-slate-300 dark:border-white/10' : `bg-white/40 dark:bg-[#0f172a]/60 bg-gradient-to-b ${colorConfig.gradient} ${colorConfig.border} shadow-xl shadow-black/5`;
   let addButtonLabel = viewMode === 'reserves' ? t('teamManager.benchLabel') : (mainRosterFull ? t('teamManager.benchLabel') : t('common.add'));
@@ -241,29 +215,15 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
       let icon = <ListOrdered size={10} strokeWidth={3} />;
       let text = `${pos}º`;
 
-      if (pos === 1) {
-          badgeColor = 'bg-amber-500 text-amber-950 shadow-lg shadow-amber-500/20';
-          icon = <ArrowUpCircle size={10} strokeWidth={3} />;
-          text = "NEXT UP";
-      } else if (pos === 2) {
-          badgeColor = 'bg-slate-400 text-white shadow-sm';
-          text = "2º";
-      } else if (pos === 3) {
-          text = "3º";
-      }
+      if (pos === 1) { badgeColor = 'bg-amber-500 text-amber-950 shadow-lg shadow-amber-500/20'; icon = <ArrowUpCircle size={10} strokeWidth={3} />; text = "NEXT UP"; } 
+      else if (pos === 2) { badgeColor = 'bg-slate-400 text-white shadow-sm'; text = "2º"; } 
+      else if (pos === 3) { text = "3º"; }
 
-      queueBadge = (
-          <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest z-10 flex items-center gap-1 ${badgeColor}`}>
-              {icon} {text}
-          </div>
-      );
+      queueBadge = <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest z-10 flex items-center gap-1 ${badgeColor}`}>{icon} {text}</div>;
   }
 
   return (
-    <div 
-        ref={droppableRef} 
-        className={`flex flex-col w-full h-full rounded-2xl border backdrop-blur-2xl relative transition-all duration-200 ${isQueue ? 'p-1.5 bg-white/30 dark:bg-white/[0.02] border-slate-200/50 dark:border-white/5' : `p-3 ${bgClass}`} ${isDragOver ? `ring-4 ${finalRing} ring-opacity-50 scale-[1.01] ${dropBg} z-20` : (isQueue ? '' : 'hover:border-black/10 dark:hover:border-white/20')} ${(isQueue && queueIndex === 0) ? 'ring-2 ring-amber-500/50 dark:ring-amber-500/40 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 shadow-2xl shadow-amber-500/10' : ''}`} 
-    >
+    <div ref={droppableRef} className={`flex flex-col w-full h-full rounded-2xl border backdrop-blur-2xl relative transition-all duration-200 ${isQueue ? 'p-1.5 bg-white/30 dark:bg-white/[0.02] border-slate-200/50 dark:border-white/5' : `p-3 ${bgClass}`} ${isDragOver ? `ring-4 ${finalRing} ring-opacity-50 scale-[1.01] ${dropBg} z-20` : (isQueue ? '' : 'hover:border-black/10 dark:hover:border-white/20')} ${(isQueue && queueIndex === 0) ? 'ring-2 ring-amber-500/50 dark:ring-amber-500/40 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 shadow-2xl shadow-amber-500/10' : ''}`} >
       {queueBadge}
       <SubstitutionModal isOpen={isSubModalOpen} onClose={() => setIsSubModalOpen(false)} team={team} onConfirm={handleSubstitution} />
       <div className="flex flex-col mb-1">
@@ -291,34 +251,13 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
       </div>
       {team.hasActiveBench && (<div className="flex justify-end mb-2 gap-2"><button onClick={() => setIsSubModalOpen(true)} className={`flex items-center justify-center p-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/5 text-slate-500 hover:text-indigo-500`} title="Substitute Player"><ArrowRightLeft size={18} /></button><button onClick={toggleView} className={`flex items-center gap-1 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${viewMode === 'reserves' ? 'bg-amber-500 text-white shadow-md' : 'bg-black/5 dark:bg-white/5 text-slate-500 hover:bg-black/10 dark:hover:bg-white/10'}`}>{viewMode === 'reserves' ? <ChevronLeft size={14} /> : null}{viewMode === 'reserves' ? t('common.back') : t('teamManager.benchLabel')}{viewMode === 'main' ? <ChevronRight size={14} /> : null}</button></div>)}
       
-      {/* --- SCROLLABLE LIST WITH STAGGERED ENTRANCE --- */}
-      <motion.div 
-        variants={staggerContainer}
-        initial="hidden"
-        animate="visible"
-        className={`flex-1 space-y-1.5 mt-1 overflow-y-auto custom-scrollbar ${isQueue ? 'min-h-[40px]' : 'min-h-[60px]'}`} 
-        onScroll={dispatchScrollEvent}
-      >
+      <motion.div variants={staggerContainer} initial="hidden" animate="visible" className={`flex-1 space-y-1.5 mt-1 overflow-y-auto custom-scrollbar ${isQueue ? 'min-h-[40px]' : 'min-h-[60px]'}`} onScroll={dispatchScrollEvent}>
         {displayedPlayers.length === 0 && <span className="text-[10px] text-slate-400 italic py-6 block text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-xl bg-slate-50/50 dark:bg-white/[0.01]">{viewMode === 'reserves' ? t('common.empty') : t('teamManager.dragPlayersHere')}</span>}
         <SortableContextFixed items={displayedPlayers.map(p => p.id)} strategy={verticalListSortingStrategy}>
           <AnimatePresence initial={false}>
             {displayedPlayers.map(p => (
                 <motion.div key={p.id} variants={staggerItem} layout>
-                    <PlayerCard 
-                        player={p} 
-                        locationId={listId} 
-                        profile={p.profileId ? profiles.get(p.profileId) : undefined}
-                        onUpdateName={onUpdatePlayerName} 
-                        onUpdateNumber={onUpdatePlayerNumber}
-                        onUpdateSkill={onUpdateSkill}
-                        onSaveProfile={onSaveProfile}
-                        onRequestProfileEdit={onRequestProfileEdit}
-                        isCompact={viewMode === 'reserves' || (window.innerWidth < 640 && !isQueue)}
-                        onToggleMenu={onTogglePlayerMenu}
-                        isMenuActive={activePlayerMenuId === p.id}
-                        validateNumber={(n) => validateNumber(n, team.id, p.id)}
-                        onShowToast={onShowToast}
-                    />
+                    <PlayerCard player={p} locationId={listId} profile={p.profileId ? profiles.get(p.profileId) : undefined} onUpdateName={onUpdatePlayerName} onUpdateNumber={onUpdatePlayerNumber} onUpdateSkill={onUpdateSkill} onSaveProfile={onSaveProfile} onRequestProfileEdit={onRequestProfileEdit} isCompact={viewMode === 'reserves' || (window.innerWidth < 640 && !isQueue)} onToggleMenu={onTogglePlayerMenu} isMenuActive={activePlayerMenuId === p.id} validateNumber={(n) => validateNumber(n, team.id, p.id)} onShowToast={onShowToast} />
                 </motion.div>
             ))}
           </AnimatePresence>
@@ -342,12 +281,25 @@ const ProfileCard = memo(({ profile, onDelete, onAddToGame, status, onEdit, plac
         document.addEventListener('mousedown', handleInteraction); document.addEventListener(SCROLL_EVENT, handleInteraction); window.addEventListener('scroll', handleInteraction, { capture: true });
         return () => { document.removeEventListener('mousedown', handleInteraction); document.removeEventListener(SCROLL_EVENT, handleInteraction); window.removeEventListener('scroll', handleInteraction, { capture: true }); };
     }, [showJoinMenu]);
+    
     const handleToggleJoinMenu = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (showJoinMenu) { setShowJoinMenu(false); } else if (joinButtonRef.current) { const rect = joinButtonRef.current.getBoundingClientRect(); const optionHeight = 44; const estimatedMenuHeight = (placementOptions.length * optionHeight) + 16; const spaceBelow = window.innerHeight - rect.bottom; let top = rect.bottom + 4; if (spaceBelow < estimatedMenuHeight) { top = rect.top - estimatedMenuHeight - 4; } setMenuPos({ top, left: rect.left, width: rect.width }); setShowJoinMenu(true); }
     };
+    
+    // --- ROLE DISPLAY LOGIC ---
+    const activeRole = profile.role || 'none';
+    let RoleIcon = null;
+    let roleColor = "";
+    
+    if (activeRole === 'setter') { RoleIcon = Hand; roleColor = "text-amber-500"; }
+    else if (activeRole === 'hitter') { RoleIcon = Zap; roleColor = "text-rose-500"; }
+    else if (activeRole === 'middle') { RoleIcon = Target; roleColor = "text-indigo-500"; }
+    else if (activeRole === 'libero') { RoleIcon = Shield; roleColor = "text-emerald-500"; }
+
     const statusLabels: Record<string, string> = { 'A': t('teamManager.location.courtA'), 'B': t('teamManager.location.courtB'), 'Queue': t('teamManager.location.queue'), 'A_Bench': t('teamManager.benchLabel'), 'B_Bench': t('teamManager.benchLabel'), 'Queue_Bench': 'Q-Bench' };
-    return (<motion.div variants={staggerItem} className={`relative p-3 rounded-xl border transition-all ${status ? 'bg-indigo-50/50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'}`}>{status && (<div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-500/20 text-[9px] font-bold text-indigo-600 dark:text-indigo-300 uppercase tracking-wider border border-indigo-200 dark:border-indigo-500/30">{statusLabels[status] || status}</div>)}<div className="flex items-center gap-3 mb-2"><div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-black/20 flex items-center justify-center text-xl shadow-inner">{profile.avatar || '👤'}</div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-slate-800 dark:text-slate-200 truncate text-sm">{profile.name}</h4>{profile.number && <span className="text-[10px] font-mono text-slate-400">#{profile.number}</span>}</div><div className="flex items-center gap-1 mt-1"><Star size={10} className="text-amber-400 fill-amber-400" /><span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{t('profile.skillLevel')} {profile.skillLevel}</span></div></div></div><div className="flex gap-2 mt-3">{!status ? (<button ref={joinButtonRef} onClick={handleToggleJoinMenu} className="flex-1 flex items-center justify-center gap-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-200 dark:border-indigo-500/20 transition-colors"><PlusCircle size={12} /> {t('teamManager.profiles.assign')}</button>) : (<div className="flex-1 flex items-center justify-center py-1.5 text-[10px] font-bold text-slate-400 italic">{t('teamManager.profiles.inGame')}</div>)}<button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><Edit2 size={14} /></button><button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors rounded-lg hover:bg-rose-50 dark:hover:bg-rose-500/10"><Trash2 size={14} /></button></div>{showJoinMenu && menuPos && createPortal(<div className="fixed z-[9999]" style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}><motion.div ref={menuRef} initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 5, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden flex flex-col p-1 max-h-48 overflow-y-auto custom-scrollbar">{placementOptions.map(opt => (<button key={opt.targetId} onClick={() => { onAddToGame(opt.targetId); setShowJoinMenu(false); }} className="w-full text-left px-3 py-2 text-[10px] font-bold uppercase tracking-wide hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-600 dark:text-slate-300 truncate flex items-center gap-2">{opt.teamColor && <div className={`w-2 h-2 rounded-full ${resolveTheme(opt.teamColor).halo}`} />}{opt.label}</button>))}</motion.div></div>, document.body)}</motion.div>);
+    
+    return (<motion.div variants={staggerItem} className={`relative p-3 rounded-xl border transition-all ${status ? 'bg-indigo-50/50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'}`}>{status && (<div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-500/20 text-[9px] font-bold text-indigo-600 dark:text-indigo-300 uppercase tracking-wider border border-indigo-200 dark:border-indigo-500/30">{statusLabels[status] || status}</div>)}<div className="flex items-center gap-3 mb-2"><div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-black/20 flex items-center justify-center text-xl shadow-inner">{profile.avatar || '👤'}</div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-slate-800 dark:text-slate-200 truncate text-sm">{profile.name}</h4>{RoleIcon && <RoleIcon size={12} className={roleColor} strokeWidth={2.5} />}{profile.number && <span className="text-[10px] font-mono text-slate-400">#{profile.number}</span>}</div><div className="flex items-center gap-1 mt-1"><Star size={10} className="text-amber-400 fill-amber-400" /><span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{t('profile.skillLevel')} {profile.skillLevel}</span></div></div></div><div className="flex gap-2 mt-3">{!status ? (<button ref={joinButtonRef} onClick={handleToggleJoinMenu} className="flex-1 flex items-center justify-center gap-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-200 dark:border-indigo-500/20 transition-colors"><PlusCircle size={12} /> {t('teamManager.profiles.assign')}</button>) : (<div className="flex-1 flex items-center justify-center py-1.5 text-[10px] font-bold text-slate-400 italic">{t('teamManager.profiles.inGame')}</div>)}<button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><Edit2 size={14} /></button><button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors rounded-lg hover:bg-rose-50 dark:hover:bg-rose-500/10"><Trash2 size={14} /></button></div>{showJoinMenu && menuPos && createPortal(<div className="fixed z-[9999]" style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}><motion.div ref={menuRef} initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 5, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden flex flex-col p-1 max-h-48 overflow-y-auto custom-scrollbar">{placementOptions.map(opt => (<button key={opt.targetId} onClick={() => { onAddToGame(opt.targetId); setShowJoinMenu(false); }} className="w-full text-left px-3 py-2 text-[10px] font-bold uppercase tracking-wide hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-600 dark:text-slate-300 truncate flex items-center gap-2">{opt.teamColor && <div className={`w-2 h-2 rounded-full ${resolveTheme(opt.teamColor).halo}`} />}{opt.label}</button>))}</motion.div></div>, document.body)}</motion.div>);
 });
 
 const BatchInputSection = memo(({ onGenerate }: { onGenerate: (names: string[]) => void }) => {
@@ -365,16 +317,12 @@ const RosterBoard = ({ courtA, courtB, queue, wrappedUpdateSkill, wrappedAdd, ha
     const autoScrollDirection = useRef<'left' | 'right' | null>(null);
     const [queuePage, setQueuePage] = useState(1);
     
-    // Track queue length to detect new teams
     const prevQueueLen = useRef(queue.length);
-    // Track target scroll index for reordering animations
     const pendingScrollToIndex = useRef<number | null>(null);
 
     const handleReorderLocal = useCallback((from: number, to: number) => {
         if (reorderQueue) {
             reorderQueue(from, to);
-            // We want to follow the team that moved.
-            // The team originally at 'from' is now at 'to'.
             pendingScrollToIndex.current = to;
         }
     }, [reorderQueue]);
@@ -385,37 +333,23 @@ const RosterBoard = ({ courtA, courtB, queue, wrappedUpdateSkill, wrappedAdd, ha
     useDndMonitor({ onDragStart: () => setIsAutoScrolling(true), onDragEnd: () => { setIsAutoScrolling(false); autoScrollDirection.current = null; }, onDragCancel: () => { setIsAutoScrolling(false); autoScrollDirection.current = null; } });
     useEffect(() => { if (!isAutoScrolling) return; const handleMouseMove = (e: MouseEvent | TouchEvent) => { if (!queueScrollRef.current) return; const rect = queueScrollRef.current.getBoundingClientRect(); const x = (e as MouseEvent).clientX || (e as TouchEvent).touches?.[0]?.clientX || 0; const EDGE_SIZE = 50; const y = (e as MouseEvent).clientY || (e as TouchEvent).touches?.[0]?.clientY || 0; if (y < rect.top || y > rect.bottom) { autoScrollDirection.current = null; return; } if (x < rect.left + EDGE_SIZE) { autoScrollDirection.current = 'left'; } else if (x > rect.right - EDGE_SIZE) { autoScrollDirection.current = 'right'; } else { autoScrollDirection.current = null; } }; window.addEventListener('mousemove', handleMouseMove); window.addEventListener('touchmove', handleMouseMove); const interval = setInterval(() => { if (autoScrollDirection.current && queueScrollRef.current) { const scrollAmount = 10; queueScrollRef.current.scrollBy({ left: autoScrollDirection.current === 'left' ? -scrollAmount : scrollAmount, behavior: 'auto' }); } }, 16); return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('touchmove', handleMouseMove); clearInterval(interval); }; }, [isAutoScrolling]);
     
-    // Auto-scroll logic for Add and Reorder
     useEffect(() => {
-        // Case 1: Reorder Scroll (Higher priority for explicit user action in queue)
         if (pendingScrollToIndex.current !== null && queueScrollRef.current) {
              const targetIndex = pendingScrollToIndex.current;
-             // Ensure width is valid
              const width = queueScrollRef.current.clientWidth;
-             
              if (width > 0) {
                  requestAnimationFrame(() => {
-                     queueScrollRef.current?.scrollTo({
-                         left: targetIndex * width,
-                         behavior: 'smooth'
-                     });
+                     queueScrollRef.current?.scrollTo({ left: targetIndex * width, behavior: 'smooth' });
                      setQueuePage(targetIndex + 1);
                      pendingScrollToIndex.current = null;
                  });
              }
-        } 
-        // Case 2: New Team Added (Scroll to End)
-        else if (queue.length > prevQueueLen.current) {
+        } else if (queue.length > prevQueueLen.current) {
             requestAnimationFrame(() => {
                 setTimeout(() => {
                     if (queueScrollRef.current) {
                         const scrollLeft = queueScrollRef.current.scrollWidth - queueScrollRef.current.clientWidth;
-                        queueScrollRef.current.scrollTo({
-                            left: scrollLeft > 0 ? scrollLeft : 0, 
-                            behavior: 'smooth'
-                        });
-                        
-                        // Update page indicator immediately
+                        queueScrollRef.current.scrollTo({ left: scrollLeft > 0 ? scrollLeft : 0, behavior: 'smooth' });
                         const width = queueScrollRef.current.clientWidth;
                         if (width > 0) {
                             const newPage = Math.ceil(queueScrollRef.current.scrollWidth / width);
@@ -426,17 +360,12 @@ const RosterBoard = ({ courtA, courtB, queue, wrappedUpdateSkill, wrappedAdd, ha
             });
         }
         prevQueueLen.current = queue.length;
-    }, [queue.length, queue]); // Depend on queue reference to catch reorders even if length same
+    }, [queue.length, queue]);
 
     const isFiltered = !!queueSearchTerm.trim();
 
     return (
-        <motion.div 
-            variants={staggerContainer}
-            initial="hidden"
-            animate="visible"
-            className="flex flex-col [@media(min-width:736px)]:grid [@media(min-width:736px)]:grid-cols-2 [@media(min-width:992px)]:flex [@media(min-width:992px)]:flex-row gap-4 [@media(min-width:992px)]:gap-8 pb-24 px-1 min-h-[60vh] pt-4"
-        >
+        <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="flex flex-col [@media(min-width:736px)]:grid [@media(min-width:736px)]:grid-cols-2 [@media(min-width:992px)]:flex [@media(min-width:992px)]:flex-row gap-4 [@media(min-width:992px)]:gap-8 pb-24 px-1 min-h-[60vh] pt-4">
             <div className="w-full [@media(min-width:992px)]:w-[30%] h-full">
                 <TeamColumn id="A" team={courtA} onUpdateSkill={wrappedUpdateSkill} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} onUpdatePlayerName={wrappedUpdateName} onUpdatePlayerNumber={wrappedUpdateNumber} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(id: string) => setEditingTarget({ type: 'player', id })} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} profiles={profiles} onUpdateTeamName={()=>{}} onUpdateTeamColor={wrappedUpdateColor} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} validateNumber={validateNumber} isDragOver={dragOverContainerId === 'A' || dragOverContainerId === 'A_Reserves'} onShowToast={(msg: string, type: any) => setToast({ message: msg, visible: true, type, systemIcon: type === 'success' ? 'save' : 'alert' })} />
             </div>
@@ -452,16 +381,7 @@ const RosterBoard = ({ courtA, courtB, queue, wrappedUpdateSkill, wrappedAdd, ha
                     ) : (
                         <AnimatePresence initial={false} mode="popLayout">
                             {filteredQueue.map((team: Team, idx: number) => (
-                                <motion.div 
-                                    key={team.id} 
-                                    layout="position"
-                                    layoutId={`queue-card-${team.id}`}
-                                    initial={{ opacity: 0, scale: 0.95 }} 
-                                    animate={{ opacity: 1, scale: 1 }} 
-                                    exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }} 
-                                    transition={{ type: "spring", stiffness: 60, damping: 15, mass: 1 }}
-                                    className="snap-center w-full flex-shrink-0 h-full px-2 pt-1 pb-1 flex flex-col"
-                                > 
+                                <motion.div key={team.id} layout="position" layoutId={`queue-card-${team.id}`} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }} transition={{ type: "spring", stiffness: 60, damping: 15, mass: 1 }} className="snap-center w-full flex-shrink-0 h-full px-2 pt-1 pb-1 flex flex-col"> 
                                     <TeamColumn id={team.id} team={team} profiles={profiles} onUpdateTeamName={()=>{}} onUpdateTeamColor={wrappedUpdateColor} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={()=>{}} onUpdateSkill={wrappedUpdateSkill} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} isQueue={true} onUpdatePlayerName={wrappedUpdateName} onUpdatePlayerNumber={wrappedUpdateNumber} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(id: string) => setEditingTarget({ type: 'player', id })} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} isNext={idx === 0 && !queueSearchTerm} validateNumber={validateNumber} onDisband={disbandTeam} onReorder={isFiltered ? undefined : handleReorderLocal} queueIndex={idx} queueSize={queue.length} isDragOver={dragOverContainerId === team.id || dragOverContainerId === `${team.id}_Reserves`} onShowToast={(msg: string, type: any) => setToast({ message: msg, visible: true, type, systemIcon: type === 'success' ? 'save' : 'alert' })} />
                                 </motion.div>
                             ))}
@@ -708,33 +628,34 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
       return null;
   };
 
-  const handleSaveProfileData = (name: string, number: string, avatar: string, skill: number) => {
+  const handleSaveProfileData = (name: string, number: string, avatar: string, skill: number, role: PlayerRole) => {
     if (!editingTarget) return;
 
     if (editingTarget.type === 'player') {
         const rosterPlayerId = editingTarget.id;
-        props.onSaveProfile(rosterPlayerId, { name, number, avatar, skill });
+        props.onSaveProfile(rosterPlayerId, { name, number, avatar, skill, role });
     } else if (editingTarget.type === 'profile') {
         if (props.upsertProfile) {
-            props.upsertProfile(name, skill, editingTarget.id, { number, avatar });
+            props.upsertProfile(name, skill, editingTarget.id, { number, avatar, role });
         }
     }
     setEditingTarget(null);
   };
 
   const getInitialModalData = () => {
-      if (!editingTarget) return { name: '', number: '', skill: 3 };
+      if (!editingTarget) return { name: '', number: '', skill: 3, role: 'none' as PlayerRole };
       if (editingTarget.type === 'player') {
           const p = playersById.get(editingTarget.id);
           const prof = p?.profileId ? props.profiles.get(p.profileId) : null;
           return { 
               name: prof?.name || p?.name || '', 
               number: prof?.number || p?.number || '', 
-              skill: prof?.skillLevel || p?.skillLevel || 3 
+              skill: prof?.skillLevel || p?.skillLevel || 3,
+              role: prof?.role || p?.role || 'none'
           };
       } else {
           const p = props.profiles.get(editingTarget.id);
-          return { name: p?.name || '', number: p?.number || '', skill: p?.skillLevel || 3 };
+          return { name: p?.name || '', number: p?.number || '', skill: p?.skillLevel || 3, role: p?.role || 'none' };
       }
   };
 
@@ -745,7 +666,6 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
   let menuTop = 0, menuLeft = 0;
   if (activePlayerMenu) { const rect = activePlayerMenu.rect; const menuHeight = 130; const menuWidth = 220; const vw = window.innerWidth; const vh = window.innerHeight; if (rect.bottom + menuHeight > vh - 20) { menuTop = rect.bottom - menuHeight; } else { menuTop = rect.top; } menuLeft = rect.right - menuWidth; if (rect.right > vw - 10) { menuLeft = vw - menuWidth - 10; } if (menuLeft < 10) { menuLeft = 10; } }
   
-  // Safe Tab Button with text overflow protection
   const TabButton = ({ id, label, icon: Icon }: any) => ( 
     <button 
       onClick={() => setActiveTab(id)} 
@@ -791,6 +711,7 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
               initialName={getInitialModalData().name}
               initialNumber={getInitialModalData().number}
               initialSkill={getInitialModalData().skill}
+              initialRole={getInitialModalData().role}
               title={editingTarget.type === 'profile' ? t('profile.editTitle') : t('profile.createTitle')}
           />
       )}

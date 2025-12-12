@@ -1,8 +1,7 @@
-
-
 import { useState, useEffect, useCallback } from 'react';
-import { PlayerProfile } from '../types';
+import { PlayerProfile, PlayerRole, ProfileStats } from '../types';
 import { SecureStorage } from '../services/SecureStorage';
+import { mergeStats, StatsDelta } from '../utils/statsEngine';
 import { v4 as uuidv4 } from 'uuid';
 
 const PROFILES_STORAGE_KEY = 'player_profiles_master';
@@ -32,7 +31,7 @@ export const usePlayerProfiles = () => {
     SecureStorage.save(PROFILES_STORAGE_KEY, array);
   }, [profiles, isReady]);
 
-  const upsertProfile = useCallback((name: string, skillLevel: number, id?: string, extras?: { number?: string, avatar?: string }): PlayerProfile => {
+  const upsertProfile = useCallback((name: string, skillLevel: number, id?: string, extras?: { number?: string, avatar?: string, role?: PlayerRole }): PlayerProfile => {
     const cleanName = name.trim();
     const now = Date.now();
     
@@ -48,6 +47,8 @@ export const usePlayerProfiles = () => {
       skillLevel: Math.min(10, Math.max(1, skillLevel)),
       number: extras?.number !== undefined ? extras.number : existing?.number,
       avatar: extras?.avatar !== undefined ? extras.avatar : existing?.avatar,
+      role: extras?.role !== undefined ? extras.role : existing?.role,
+      stats: existing?.stats, // Preserve existing stats
       createdAt: existing?.createdAt || now,
       lastUpdated: now
     };
@@ -60,6 +61,39 @@ export const usePlayerProfiles = () => {
 
     return newProfile;
   }, [profiles]);
+
+  /**
+   * Batch updates statistics for multiple profiles at once.
+   * This is the "Sync Engine" entry point.
+   * 
+   * @param updates Map of ProfileID -> StatsDelta
+   */
+  const batchUpdateStats = useCallback((updates: Map<string, StatsDelta>) => {
+    setProfiles((prev: Map<string, PlayerProfile>) => {
+      const next = new Map(prev);
+      let hasChanges = false;
+
+      updates.forEach((delta, profileId) => {
+        const profile = next.get(profileId);
+        if (profile) {
+          const newStats = mergeStats(profile.stats, delta);
+          
+          // Basic MVP check (simplistic: if mvpScore > 10 in a match, count as MVP for now? 
+          // Real MVP logic is usually comparative per match, this is just accumulation)
+          // For V2, we just accumulate the raw stats. MVP calc happens at display time or Match Record level.
+          
+          next.set(profileId, {
+            ...profile,
+            stats: newStats,
+            lastUpdated: Date.now()
+          });
+          hasChanges = true;
+        }
+      });
+
+      return hasChanges ? next : prev;
+    });
+  }, []);
 
   const deleteProfile = useCallback((id: string) => {
     setProfiles(prev => {
@@ -85,6 +119,7 @@ export const usePlayerProfiles = () => {
     deleteProfile,
     findProfileByName,
     getProfile,
+    batchUpdateStats,
     isReady
   };
 };

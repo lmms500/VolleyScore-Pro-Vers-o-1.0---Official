@@ -1,28 +1,43 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Reconstruct __dirname for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export default defineConfig({
+  resolve: {
+    // CRITICAL: Force all React imports to resolve to the project's root node_modules.
+    // This fixes "Minified React error #31" and Context API failures caused by multiple React instances.
+    alias: {
+      'react': path.resolve(__dirname, 'node_modules/react'),
+      'react-dom/client': path.resolve(__dirname, 'node_modules/react-dom/client'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+    },
+    // Ensure Vite does not duplicate these packages
+    dedupe: ['react', 'react-dom'],
+  },
   build: {
     target: 'esnext',
-    minify: 'terser', // Melhor compressão para produção
+    minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true, // Remove console.log em produção
+        drop_console: true,
         drop_debugger: true,
       },
     },
     cssCodeSplit: true,
-    sourcemap: false, // Desabilita sourcemaps em produção para segurança e tamanho
+    sourcemap: false,
     rollupOptions: {
       output: {
-        // Estratégia agressiva de Code Splitting
         manualChunks: {
-          'react-core': ['react', 'react-dom'],
           'ui-libs': ['framer-motion', 'lucide-react'],
           'app-logic': ['zustand', 'uuid'],
           'dnd-kit': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
-          'heavy-utils': ['html-to-image'], // Isolado pois é pesado e pouco usado
+          'heavy-utils': ['html-to-image'],
         }
       }
     }
@@ -30,7 +45,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate', // Atualização silenciosa e rápida para mobile
+      registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.svg'],
       workbox: {
@@ -38,7 +53,6 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        // Runtime Caching: Estratégia CacheFirst para máxima velocidade
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

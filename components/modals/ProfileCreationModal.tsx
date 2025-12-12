@@ -3,16 +3,18 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { Save, User, UserCircle2 } from 'lucide-react';
+import { Save, User, UserCircle2, Shield, Hand, Zap, Target } from 'lucide-react';
 import { useTranslation } from '../../contexts/LanguageContext';
+import { PlayerRole } from '../../types';
 
 interface ProfileCreationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (name: string, number: string, avatar: string, skill: number) => void;
+  onSave: (name: string, number: string, avatar: string, skill: number, role: PlayerRole) => void;
   initialName: string;
   initialNumber: string;
   initialSkill?: number;
+  initialRole?: PlayerRole;
   title?: string;
 }
 
@@ -22,13 +24,14 @@ const AVATARS = [
 ];
 
 export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
-  isOpen, onClose, onSave, initialName, initialNumber, initialSkill = 5, title
+  isOpen, onClose, onSave, initialName, initialNumber, initialSkill = 5, initialRole = 'none', title
 }) => {
   const { t } = useTranslation();
   const [name, setName] = useState(initialName);
   const [number, setNumber] = useState(initialNumber);
   const [avatar, setAvatar] = useState('🏐');
   const [skill, setSkill] = useState(initialSkill);
+  const [role, setRole] = useState<PlayerRole>(initialRole);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -36,12 +39,13 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
           setName(initialName);
           setNumber(initialNumber);
           setSkill(initialSkill || 5);
+          setRole(initialRole || 'none');
       }
-  }, [isOpen, initialName, initialNumber, initialSkill]);
+  }, [isOpen, initialName, initialNumber, initialSkill, initialRole]);
 
   const handleSave = () => {
     if (!name.trim()) return;
-    onSave(name, number, avatar, skill);
+    onSave(name, number, avatar, skill, role);
     onClose();
   };
 
@@ -56,6 +60,13 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
       if (s <= 7) return 'bg-amber-500';
       return 'bg-emerald-500';
   };
+
+  const roles: { id: PlayerRole, label: string, icon: any, color: string }[] = [
+      { id: 'setter', label: 'Setter', icon: Hand, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
+      { id: 'hitter', label: 'Hitter', icon: Zap, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20' },
+      { id: 'middle', label: 'Middle', icon: Target, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' },
+      { id: 'libero', label: 'Libero', icon: Shield, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
+  ];
 
   if (!isOpen) return null;
 
@@ -170,7 +181,30 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
             </div>
         </div>
 
-        {/* --- 4. ACTIONS --- */}
+        {/* --- 4. ROLE SELECTION --- */}
+        <div>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block px-1">Primary Role</label>
+            <div className="grid grid-cols-4 gap-2">
+                {roles.map((r) => {
+                    const isActive = role === r.id;
+                    return (
+                        <button
+                            key={r.id}
+                            onClick={() => setRole(isActive ? 'none' : r.id)}
+                            className={`
+                                flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border transition-all duration-200
+                                ${isActive ? r.color + ' ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-current' : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10'}
+                            `}
+                        >
+                            <r.icon size={18} />
+                            <span className="text-[9px] font-bold uppercase tracking-wide">{r.label}</span>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+
+        {/* --- 5. ACTIONS --- */}
         <div className="grid grid-cols-2 gap-3 pt-2">
             <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
             <Button onClick={handleSave} className="bg-indigo-600 text-white shadow-indigo-500/20">

@@ -453,6 +453,34 @@ class AudioService {
     subOsc.stop(t + 2);
   }
 
+  // 12. Unlock/Party Effect (New!)
+  public playUnlock() {
+    const ctx = this.getContext();
+    if (!ctx || !this.masterGain) return;
+    const t = ctx.currentTime;
+
+    // Bright Ascending Arpeggio (Magic/Unlock Sound)
+    const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98]; // C Major Arpeggio
+    
+    notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = t + (i * 0.06);
+
+        osc.type = 'triangle'; // Brighter than sine
+        osc.frequency.value = freq;
+
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(0.1, start + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.5);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain!);
+        osc.start(start);
+        osc.stop(start + 0.6);
+    });
+  }
+
   private makeDistortionCurve(amount: number) {
     const k = typeof amount === 'number' ? amount : 50;
     const n_samples = 44100;

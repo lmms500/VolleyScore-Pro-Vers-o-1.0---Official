@@ -1,7 +1,9 @@
+
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, X, Smartphone } from 'lucide-react';
 import { useTranslation } from '../../contexts/LanguageContext';
+import { Capacitor } from '@capacitor/core';
 
 interface InstallReminderProps {
   isVisible: boolean;
@@ -15,13 +17,14 @@ export const InstallReminder: React.FC<InstallReminderProps> = ({
   isVisible, onInstall, onDismiss, canInstall, isIOS 
 }) => {
   const { t } = useTranslation();
+  const isNative = Capacitor.isNativePlatform();
 
-  // On iOS, we don't show the reminder if we can't programmatically install, 
-  // unless we want to show instructions again (which might be annoying as a toast).
-  // Strategy: Only show if `canInstall` (Android/Desktop) OR show a generic "Add to Home" message for iOS.
-  
+  // 🛡️ CRITICAL: Absolute Kill Switch for Native Apps
+  // Prevents "Add to Home Screen" banner from appearing inside the App Store version
+  if (isNative) return null;
+
+  // Logic: Only show if visible AND (Android Installable OR iOS Instructions needed)
   if (!isVisible) return null;
-  // If we can't install and it's not iOS (e.g. standard desktop browser without support), hide.
   if (!canInstall && !isIOS) return null;
 
   return (

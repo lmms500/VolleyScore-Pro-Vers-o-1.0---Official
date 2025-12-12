@@ -9,6 +9,7 @@ import { useGameAudio } from '../hooks/useGameAudio';
 import { useHaptics } from '../hooks/useHaptics';
 import { ScoutModal } from './modals/ScoutModal';
 import { resolveTheme } from '../utils/colors';
+import { useCollider } from '../hooks/useCollider';
 
 interface ScoreCardFullscreenProps {
   teamId: TeamId;
@@ -39,7 +40,8 @@ const ScoreNumberDisplay = memo(({
     numberRef, 
     isCritical,
     isMatchPoint,
-    isServing
+    isServing,
+    colliderRef 
 }: any) => {
 
     const haloColorClass = isMatchPoint ? 'bg-amber-500 saturate-150' : theme.halo;
@@ -86,7 +88,7 @@ const ScoreNumberDisplay = memo(({
                 }
             />
 
-            {/* The Number - In front of Halo */}
+            {/* The Number - In front of Halo + Collision Target */}
             <motion.div 
                 ref={numberRef} 
                 className="col-start-1 row-start-1 relative z-10 flex flex-col items-center justify-center will-change-transform overflow-visible"
@@ -94,15 +96,18 @@ const ScoreNumberDisplay = memo(({
                 animate={isCritical ? "pulse" : "idle"}
             >
                 <div ref={scoreRefCallback} className="overflow-visible p-4">
-                    <ScoreTicker 
-                        value={score}
-                        className={`
-                            font-black leading-none tracking-tighter transition-all duration-300
-                            text-slate-900 dark:text-white
-                            ${textEffectClass}
-                            ${isPressed ? 'scale-95 opacity-90' : ''}
-                        `}
-                    />
+                    {/* COLLIDER IS HERE: Wraps the actual number text */}
+                    <div ref={colliderRef}>
+                        <ScoreTicker 
+                            value={score}
+                            className={`
+                                font-black leading-none tracking-tighter transition-all duration-300
+                                text-slate-900 dark:text-white
+                                ${textEffectClass}
+                                ${isPressed ? 'scale-95 opacity-90' : ''}
+                            `}
+                        />
+                    </div>
                 </div>
             </motion.div>
         </div>
@@ -122,6 +127,10 @@ export const ScoreCardFullscreen: React.FC<ScoreCardFullscreenProps> = memo(({
   
   const containerRef = useRef<HTMLDivElement>(null);
   const numberRef = useRef<HTMLDivElement>(null);
+  
+  // Physics Collider specifically for the fullscreen number
+  const colliderRef = useCollider(`sc-fs-${teamId}`);
+
   const audio = useGameAudio(config);
   const haptics = useHaptics(true);
 
@@ -268,6 +277,7 @@ export const ScoreCardFullscreen: React.FC<ScoreCardFullscreenProps> = memo(({
                         isCritical={isCritical}
                         isMatchPoint={isMatchPoint}
                         isServing={isServing}
+                        colliderRef={colliderRef}
                     />
                 </div>
             </div>

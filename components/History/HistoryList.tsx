@@ -1,17 +1,20 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react';
 import { useHistoryStore, Match } from '../../stores/historyStore';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { downloadJSON, exportMatchesToCSV, parseJSONFile } from '../../services/io';
 import { 
   Search, Clock, Trash2, ChevronDown, ChevronUp, 
-  Download, Upload, Filter, AlertCircle, BarChart2, Crown, Calendar, SortDesc, Check, FileSpreadsheet, FileJson
+  Download, Upload, Filter, AlertCircle, BarChart2, Crown, Calendar, SortDesc, Check, FileSpreadsheet, FileJson, PieChart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../ui/Button';
 import { MatchDetail } from './MatchDetail';
 import { resolveTheme, getHexFromColor } from '../../utils/colors';
 import { Virtuoso } from 'react-virtuoso'; 
+
+// Lazy load the new stats modal
+const TeamStatsModal = lazy(() => import('../modals/TeamStatsModal').then(module => ({ default: module.TeamStatsModal })));
 
 // --- SUB-COMPONENTS ---
 
@@ -304,6 +307,7 @@ export const HistoryList: React.FC = () => {
     
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+    const [showStats, setShowStats] = useState(false);
     const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -396,6 +400,10 @@ export const HistoryList: React.FC = () => {
                 accept=".json" 
                 onChange={handleFileChange}
             />
+            
+            <Suspense fallback={null}>
+                <TeamStatsModal isOpen={showStats} onClose={() => setShowStats(false)} />
+            </Suspense>
 
             <div className="sticky top-0 z-30 mb-6 -mx-1 px-1">
                 <div className="bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-2xl p-3 shadow-lg shadow-black/5 dark:shadow-black/20">
@@ -412,6 +420,10 @@ export const HistoryList: React.FC = () => {
                         </div>
                         
                         <div className="flex gap-1">
+                            <button onClick={() => setShowStats(true)} className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors" title="Aggregated Stats">
+                                <PieChart size={18} />
+                            </button>
+                            
                             <ExportMenu onExportJSON={handleExportJSON} onExportCSV={handleExportCSV} />
                             
                             <button onClick={handleImportClick} className="p-2.5 rounded-2xl bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-white hover:bg-indigo-50 dark:hover:bg-white/10 transition-colors" title={t('historyList.import')}>

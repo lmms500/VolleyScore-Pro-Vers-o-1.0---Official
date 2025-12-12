@@ -6,7 +6,7 @@ import { resolveTheme } from '../../utils/colors';
 import { 
   Swords, Shield, Target, AlertTriangle, CheckCircle2, Mic, 
   AlertCircle, HelpCircle, X, Sparkles, ArrowRightLeft, Save, 
-  Ban, RotateCcw, Trash2, UserPlus, Users
+  Ban, RotateCcw, Trash2, UserPlus, Users, PartyPopper
 } from 'lucide-react';
 import { softBounce } from '../../utils/animations';
 
@@ -20,7 +20,7 @@ interface NotificationToastProps {
   onClose: () => void;
   duration?: number;
   isFullscreen?: boolean;
-  systemIcon?: 'transfer' | 'save' | 'mic' | 'alert' | 'block' | 'undo' | 'delete' | 'add' | 'roster';
+  systemIcon?: 'transfer' | 'save' | 'mic' | 'alert' | 'block' | 'undo' | 'delete' | 'add' | 'roster' | 'party';
 }
 
 const skillIcons: Record<SkillType | 'generic', any> = {
@@ -48,7 +48,8 @@ const systemIconsMap: Record<string, any> = {
     undo: RotateCcw,
     delete: Trash2,
     add: UserPlus,
-    roster: Users
+    roster: Users,
+    party: PartyPopper
 };
 
 export const NotificationToast: React.FC<NotificationToastProps> = ({ 
@@ -155,6 +156,12 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
           theme.iconBg = 'bg-slate-500/10';
           theme.iconColor = 'text-slate-500 dark:text-slate-400';
           theme.borderColor = 'border-slate-500/20';
+      }
+      if (systemIcon === 'party') {
+          theme.iconBg = 'bg-fuchsia-500/10';
+          theme.iconColor = 'text-fuchsia-500';
+          theme.borderColor = 'border-fuchsia-500/20';
+          theme.textColor = 'text-fuchsia-700 dark:text-fuchsia-300';
       }
   }
 

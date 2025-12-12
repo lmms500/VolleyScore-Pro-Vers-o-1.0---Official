@@ -5,6 +5,7 @@ import { SETS_TO_WIN_MATCH, MIN_LEAD_TO_WIN } from '../constants';
 import { isValidTimeoutRequest, sanitizeInput } from '../utils/security';
 import { handleAddPlayer, handleRemovePlayer, handleDeletePlayer, handleMovePlayer, handleRotate, createPlayer } from '../utils/rosterLogic';
 import { balanceTeamsSnake, distributeStandard } from '../utils/balanceUtils';
+import { v4 as uuidv4 } from 'uuid';
 
 // --- HELPERS ---
 const calculateWinner = (scoreA: number, scoreB: number, target: number, inSuddenDeath: boolean): TeamId | null => {
@@ -524,6 +525,8 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
                 if (master.number && master.number !== p.number) changed = true;
                 // Specifically allow number updates even if previously undefined/empty
                 if ((master.number || '') !== (p.number || '')) changed = true;
+                // Check Role
+                if ((master.role || 'none') !== (p.role || 'none')) changed = true;
 
                 if (changed) {
                     hasChanges = true;
@@ -531,7 +534,8 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
                         ...p, 
                         name: master.name, 
                         skillLevel: master.skillLevel,
-                        number: master.number 
+                        number: master.number,
+                        role: master.role 
                     };
                 }
                 return p;
@@ -558,6 +562,24 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
     case 'ROSTER_DISBAND_TEAM': {
         const newQueue = state.queue.filter(t => t.id !== action.teamId);
         return { ...state, queue: newQueue };
+    }
+
+    case 'ROSTER_ENSURE_TEAM_IDS': {
+        let changed = false;
+        let newA = state.teamARoster;
+        let newB = state.teamBRoster;
+
+        if (state.teamARoster.id === 'A') {
+            newA = { ...state.teamARoster, id: uuidv4() };
+            changed = true;
+        }
+        if (state.teamBRoster.id === 'B') {
+            newB = { ...state.teamBRoster, id: uuidv4() };
+            changed = true;
+        }
+
+        if (!changed) return state;
+        return { ...state, teamARoster: newA, teamBRoster: newB };
     }
 
     default:

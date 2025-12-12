@@ -126,9 +126,9 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({ isOpen, state, o
         showCloseButton={false}
         persistent={true}
       >
-        {/* Confetti Background */}
-        <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none z-0 opacity-40">
-            <Confetti color={winnerColorKey} />
+        {/* Confetti Background - Pass Winner Color twice to dominate palette + Gold/White */}
+        <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none z-0 opacity-60">
+            <Confetti colors={[winnerColorKey, winnerColorKey]} intensity="high" />
         </div>
 
         {/* Content Container - High Z-Index to stay above confetti */}

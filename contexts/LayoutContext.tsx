@@ -2,17 +2,24 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 
 type LayoutMode = 'normal' | 'compact' | 'ultra';
 
+export interface ColliderRect {
+  id: string;
+  rect: DOMRect;
+}
+
 interface LayoutState {
   mode: LayoutMode;
   scale: number;
   safeAreaTop: number;
   safeAreaBottom: number;
   isLandscape: boolean;
-  scoreCenterOffset: number; // Offset to keep score strictly centered vs visual correction
+  scoreCenterOffset: number;
+  colliders: ColliderRect[];
 }
 
 interface LayoutContextType extends LayoutState {
   registerElement: (id: string, width: number, height: number) => void;
+  registerCollider: (id: string, element: HTMLElement | null) => void;
 }
 
 const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
@@ -20,62 +27,77 @@ const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
 export const LayoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [measurements, setMeasurements] = useState<Record<string, { w: number; h: number }>>({});
   const [windowSize, setWindowSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  const [colliders, setColliders] = useState<ColliderRect[]>([]);
 
-  // Update window size with debounce/throttle implicit via React state batching
+  // Update window size & colliders on resize/scroll
   useEffect(() => {
-    const handleResize = () => setWindowSize({ w: window.innerWidth, h: window.innerHeight });
+    const handleResize = () => {
+        setWindowSize({ w: window.innerWidth, h: window.innerHeight });
+        // Trigger a re-measure of colliders (this is a simplified approach, 
+        // normally we'd need refs to re-measure but components will re-register on render)
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const registerElement = useCallback((id: string, width: number, height: number) => {
     setMeasurements(prev => {
-      // Identity check to avoid unnecessary state updates
       if (prev[id]?.w === width && prev[id]?.h === height) return prev;
       return { ...prev, [id]: { w: width, h: height } };
     });
+  }, []);
+
+  const registerCollider = useCallback((id: string, element: HTMLElement | null) => {
+      if (!element) {
+          setColliders(prev => prev.filter(c => c.id !== id));
+          return;
+      }
+      
+      // Throttle/Debounce could be added here if needed, but for now we trust effects
+      const rect = element.getBoundingClientRect();
+      setColliders(prev => {
+          const idx = prev.findIndex(c => c.id === id);
+          if (idx !== -1) {
+              // Update existing
+              const copy = [...prev];
+              copy[idx] = { id, rect };
+              return copy;
+          }
+          return [...prev, { id, rect }];
+      });
   }, []);
 
   const layoutState = useMemo((): LayoutState => {
     const { w: winW, h: winH } = windowSize;
     const isLandscape = winW > winH;
     
-    // Default safe areas (simulated for PWA/Notch)
     const safeTop = isLandscape ? 20 : 40; 
     const safeBottom = isLandscape ? 20 : 40;
 
-    // Get critical dimensions
     const topBarH = measurements['topbar']?.h || 60;
     const controlsH = measurements['controls']?.h || 80;
     const nameH = Math.max(measurements['nameA']?.h || 0, measurements['nameB']?.h || 0);
     const scoreH = Math.max(measurements['scoreA']?.h || 0, measurements['scoreB']?.h || 0);
 
-    // Calculate Available Vertical Space
     const centerToTop = winH / 2;
     const centerToBottom = winH / 2;
 
-    // Required space ABOVE center (Half Score + Name + Padding + TopBar)
     const requiredTop = (scoreH / 2) + nameH + topBarH + (isLandscape ? 20 : 40); 
-    
-    // Required space BELOW center (Half Score + Controls + Padding)
     const requiredBottom = (scoreH / 2) + controlsH + (isLandscape ? 20 : 40);
 
     let mode: LayoutMode = 'normal';
     let scale = 1;
 
-    // Logic: If overlap, reduce mode, then scale.
     if (requiredTop > centerToTop || requiredBottom > centerToBottom) {
         mode = 'compact';
-        // Recalculate with assumed compact savings (approx 20% smaller)
         const compactFactor = 0.85;
         if ((requiredTop * compactFactor) > centerToTop || (requiredBottom * compactFactor) > centerToBottom) {
              mode = 'ultra';
-             // If still too big, we must scale everything down
-             const overflowRatioTop = centerToTop / (requiredTop * 0.75); // 0.75 is ultra factor
+             const overflowRatioTop = centerToTop / (requiredTop * 0.75); 
              const overflowRatioBottom = centerToBottom / (requiredBottom * 0.75);
              const worstCase = Math.min(overflowRatioTop, overflowRatioBottom);
              if (worstCase < 1) {
-                 scale = Math.max(0.6, worstCase - 0.05); // Add 5% breathing room
+                 scale = Math.max(0.6, worstCase - 0.05); 
              }
         }
     }
@@ -86,13 +108,13 @@ export const LayoutProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         safeAreaTop: safeTop,
         safeAreaBottom: safeBottom,
         isLandscape,
-        scoreCenterOffset: 0
+        scoreCenterOffset: 0,
+        colliders
     };
 
-  }, [measurements, windowSize]);
+  }, [measurements, windowSize, colliders]);
 
-  // OPTIMIZATION: Memoize value to avoid re-renders
-  const value = useMemo(() => ({ ...layoutState, registerElement }), [layoutState, registerElement]);
+  const value = useMemo(() => ({ ...layoutState, registerElement, registerCollider }), [layoutState, registerElement, registerCollider]);
 
   return (
     <LayoutContext.Provider value={value}>
