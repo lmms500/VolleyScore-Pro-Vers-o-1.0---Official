@@ -3,52 +3,77 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Match } from '../stores/historyStore';
+import { GameState } from '../types';
 
 /**
  * I/O Service
  * Handles file system interactions for importing and exporting application data.
  */
 
+// --- HELPERS ---
+
+const shareOrDownload = async (filename: string, jsonString: string, title: string) => {
+    try {
+        if (Capacitor.isNativePlatform()) {
+            const savedFile = await Filesystem.writeFile({
+                path: filename,
+                data: jsonString,
+                directory: Directory.Cache,
+                encoding: Encoding.UTF8
+            });
+
+            await Share.share({
+                title: title,
+                url: savedFile.uri,
+                dialogTitle: title
+            }).catch(e => {
+                if (e.message !== 'Share canceled') {
+                    console.error("Native Share failed:", e);
+                }
+            });
+        } else {
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+    } catch (error) {
+        console.error(`Failed to export ${filename}:`, error);
+        throw error;
+    }
+};
+
 /**
  * Triggers a download or Native Share of the provided data as a JSON file.
+ * Used for System Backups.
  */
 export const downloadJSON = async (filename: string, data: any): Promise<void> => {
-  try {
     const safeFilename = filename.endsWith('.json') ? filename : `${filename}.json`;
-    const jsonString = JSON.stringify(data, null, 2);
+    await shareOrDownload(safeFilename, JSON.stringify(data, null, 2), 'VolleyScore Backup');
+};
 
-    if (Capacitor.isNativePlatform()) {
-        const savedFile = await Filesystem.writeFile({
-            path: safeFilename,
-            data: jsonString,
-            directory: Directory.Cache,
-            encoding: Encoding.UTF8
-        });
-
-        await Share.share({
-            title: 'VolleyScore Backup',
-            url: savedFile.uri,
-            dialogTitle: 'Export Match Data'
-        }).catch(e => {
-            if (e.message !== 'Share canceled') {
-                console.error("Native Share failed:", e);
-            }
-        });
-
-    } else {
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = safeFilename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }
-  } catch (error) {
-    console.error('Failed to export JSON:', error);
-  }
+/**
+ * NEW: Exports the current ACTIVE game state to a portable file.
+ * This allows moving an unfinished game between devices.
+ */
+export const exportActiveMatch = async (gameState: GameState): Promise<void> => {
+    // We wrap the state to identify it easily during import
+    const payload = {
+        type: 'VS_ACTIVE_MATCH',
+        version: '2.0.0',
+        timestamp: Date.now(),
+        data: gameState
+    };
+    
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `vs_match_inprogress_${dateStr}.vsg`; // .vsg = VolleyScore Game
+    
+    await shareOrDownload(filename, JSON.stringify(payload, null, 2), 'Share Active Match');
 };
 
 /**
@@ -129,8 +154,6 @@ export const exportMatchesToCSV = async (matches: Match[]): Promise<void> => {
                         if (log.playerId && log.playerId !== 'unknown') {
                             if(!playerPoints[log.playerId]) playerPoints[log.playerId] = { name: "Unknown", pts: 0 };
                             playerPoints[log.playerId].pts++;
-                            // Try to find name in rosters if possible, or use ID
-                            // (Simplification: We assume name is unavailable in log, but maybe in roster snapshot)
                         }
                     }
                 });

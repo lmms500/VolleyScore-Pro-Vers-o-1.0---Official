@@ -110,7 +110,8 @@ export const TeamStatsModal: React.FC<TeamStatsModalProps> = ({ isOpen, onClose 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={t('stats.teamStats')} maxWidth="max-w-2xl">
             <div className="flex flex-col h-[70vh]">
-                <div className="mb-4 sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm z-10 py-1">
+                {/* Search Bar with invisible container background */}
+                <div className="mb-4 sticky top-0 z-10 py-1">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input 

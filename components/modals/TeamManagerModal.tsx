@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { Team, Player, RotationMode, PlayerProfile, TeamColor, ActionLog, PlayerRole } from '../../types';
 import { calculateTeamStrength } from '../../utils/balanceUtils';
 import { Pin, Trash2, Shuffle, Edit2, Plus, Undo2, Ban, Star, Save, RefreshCw, AlertCircle, User, Upload, List, Hash, Users, Layers, Search, X, ListFilter, ArrowDownAZ, ArrowDown01, ArrowUpWideNarrow, LogOut, ChevronRight, ChevronLeft, Armchair, ArrowRightLeft, ArrowUp, MoreVertical, Unlock, RefreshCcw, PlusCircle, ArrowUpCircle, Activity, ArrowDown, Check, ChevronsUp, ChevronUp, ChevronDown, ListOrdered, Hand, Zap, Target, Shield } from 'lucide-react';
-import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors, KeyboardSensor, TouchSensor, useDndMonitor, useDroppable } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors, KeyboardSensor, TouchSensor, useDndMonitor, useDroppable, MouseSensor } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { createPortal } from 'react-dom';
 import { useTranslation } from '../../contexts/LanguageContext';
@@ -659,7 +659,15 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
       }
   };
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { delay: 250, tolerance: 5 } }), useSensor(KeyboardSensor), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }));
+  // TUNED SENSORS FOR INSTANT DRAG
+  const sensors = useSensors(
+      useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+      useSensor(TouchSensor, { 
+          activationConstraint: { delay: 100, tolerance: 5 } // Reduced delay from 250ms to 100ms for "snappy" feel
+      }),
+      useSensor(KeyboardSensor)
+  );
+
   const activePlayerForMenu = activePlayerMenu ? playersById.get(activePlayerMenu.playerId) : null;
   const activePlayerContainerId = activePlayerForMenu ? findContainer(activePlayerForMenu.id) : null;
   const isReservesForActivePlayer = activePlayerContainerId?.includes('_Reserves') ?? false;

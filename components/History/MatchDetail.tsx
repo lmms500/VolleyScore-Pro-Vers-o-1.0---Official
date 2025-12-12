@@ -2,15 +2,13 @@
 import React, { useState, useMemo } from 'react';
 import { Match } from '../../stores/historyStore';
 import { Player, SkillType, SetHistory, TeamColor } from '../../types';
-import { downloadJSON } from '../../services/io';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { 
-  ArrowLeft, Download, Clock, Calendar, 
-  Shield, Swords, Target, AlertTriangle, 
-  Activity, Crown, BarChart2, Zap, TrendingUp
+  ArrowLeft, Activity, Crown, BarChart2, Zap, TrendingUp, Shield, Swords, Target, AlertTriangle
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { resolveTheme, getHexFromColor } from '../../utils/colors';
+import { MatchTimeline } from './MatchTimeline';
 
 interface MatchDetailProps {
   match: Match;
@@ -429,7 +427,12 @@ export const MatchDetail: React.FC<MatchDetailProps> = ({ match, onBack }) => {
                     </div>
                 </div>
 
-                {/* 2. Momentum Graph */}
+                {/* 2. Detailed Timeline (Horizontal) */}
+                {match.actionLog && match.actionLog.length > 0 && (
+                    <MatchTimeline match={match} />
+                )}
+
+                {/* 3. Momentum Graph */}
                 {match.actionLog && match.actionLog.length > 0 && (
                     <div className="bg-white dark:bg-white/5 rounded-3xl p-5 border border-black/5 dark:border-white/10 shadow-sm">
                         <div className="flex items-center gap-2 mb-2">
@@ -440,7 +443,7 @@ export const MatchDetail: React.FC<MatchDetailProps> = ({ match, onBack }) => {
                     </div>
                 )}
 
-                {/* 3. Team Comparison Stats */}
+                {/* 4. Team Comparison Stats */}
                 {match.actionLog && (
                     <div className="bg-white dark:bg-white/5 rounded-3xl p-5 border border-black/5 dark:border-white/10 shadow-sm">
                         <div className="flex items-center gap-2 mb-6">
@@ -457,7 +460,7 @@ export const MatchDetail: React.FC<MatchDetailProps> = ({ match, onBack }) => {
                     </div>
                 )}
 
-                {/* 4. Player Leaderboard */}
+                {/* 5. Player Leaderboard */}
                 {topPlayers.length > 0 && (
                     <div className="bg-white dark:bg-white/5 rounded-3xl p-5 border border-black/5 dark:border-white/10 shadow-sm">
                         <div className="flex items-center gap-2 mb-4">

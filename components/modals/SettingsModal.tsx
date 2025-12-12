@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { GameConfig } from '../../types';
-import { Check, Trophy, Sun, Zap, Moon, AlertTriangle, Volume2, Umbrella, Activity, Globe, Scale, ToggleLeft, ToggleRight, RefreshCw, CloudDownload, Smartphone, ArrowRight, Mic, Battery, BatteryLow, Megaphone, User, User2, Bell, BellRing, AlignJustify, HelpCircle, LogOut, LogIn, Key, Eye, EyeOff, Layers, Cpu, Server, Target, ZapOff, UploadCloud, DownloadCloud, Loader2, Power } from 'lucide-react';
+import { Check, Trophy, Sun, Zap, Moon, AlertTriangle, Volume2, Umbrella, Activity, Globe, Scale, ToggleLeft, ToggleRight, RefreshCw, CloudDownload, Smartphone, ArrowRight, Mic, Battery, BatteryLow, Megaphone, User, User2, Bell, BellRing, AlignJustify, HelpCircle, LogOut, LogIn, Key, Eye, EyeOff, Layers, Cpu, Server, Target, ZapOff, UploadCloud, DownloadCloud, Loader2, Power, Share2, FileDown } from 'lucide-react';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useServiceWorker } from '../../hooks/useServiceWorker';
@@ -12,8 +12,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceCommandsModal } from './VoiceCommandsModal';
 import { BackupService } from '../../services/BackupService';
-import { parseJSONFile } from '../../services/io';
+import { parseJSONFile, exportActiveMatch } from '../../services/io';
 import { NotificationToast } from '../ui/NotificationToast';
+import { useGame } from '../../contexts/GameContext';
 
 // Defined constant to avoid importing package.json
 const APP_VERSION = '2.0.6';
@@ -46,9 +47,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [pendingRestart, setPendingRestart] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const gameImportRef = useRef<HTMLInputElement>(null); // For active game imports
 
   const { t, language, setLanguage } = useTranslation();
   const { theme, setTheme } = useTheme();
+  const { state, loadStateFromFile } = useGame();
   
   // Auth
   const { user, signInWithGoogle, logout } = useAuth();
@@ -159,6 +162,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       e.target.value = ''; // Reset input
   };
 
+  // --- ACTIVE GAME PORTABILITY LOGIC ---
+  const handleExportGame = async () => {
+      try {
+          await exportActiveMatch(state);
+      } catch (e) {
+          console.error("Export game failed", e);
+      }
+  };
+
+  const handleImportGameClick = () => {
+      if (gameImportRef.current) {
+          gameImportRef.current.value = '';
+          gameImportRef.current.click();
+      }
+  };
+
+  const handleGameImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      try {
+          const json = await parseJSONFile(file);
+          if (json.type === 'VS_ACTIVE_MATCH' && json.data) {
+              loadStateFromFile(json.data);
+              onClose(); // Close modal immediately on success
+          } else {
+              setStatusMsg('Invalid Game File format.');
+          }
+      } catch (e) {
+          setStatusMsg('Failed to load game file.');
+      }
+  };
+
   const handleRestart = () => {
       window.location.reload();
   };
@@ -224,6 +260,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     <>
     <VoiceCommandsModal isOpen={showVoiceHelp} onClose={() => setShowVoiceHelp(false)} />
     <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileChange} />
+    <input type="file" ref={gameImportRef} className="hidden" accept=".vsg,.json" onChange={handleGameImport} />
     
     <Modal isOpen={isOpen} onClose={onClose} title={t('settings.title')} maxWidth="max-w-md">
       <div className="flex flex-col h-[75vh]">
@@ -269,6 +306,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         transition={{ duration: 0.2 }}
                         className="space-y-4"
                     >
+                        {/* Portability Section (NEW) */}
+                        <div className={sectionClass}>
+                            <label className={labelClass}>Game Portability</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button onClick={handleExportGame} className="flex items-center justify-center gap-2 px-3 py-3 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-xl text-indigo-600 dark:text-indigo-300 font-bold text-xs hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors">
+                                    <Share2 size={16} /> Share Game
+                                </button>
+                                <button onClick={handleImportGameClick} className="flex items-center justify-center gap-2 px-3 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-600 dark:text-slate-300 font-bold text-xs hover:bg-slate-50 dark:hover:bg-white/10 transition-colors">
+                                    <FileDown size={16} /> Load File
+                                </button>
+                            </div>
+                            <p className="text-[9px] text-slate-400 mt-2 text-center">Save current match to continue on another device.</p>
+                        </div>
+
                         {/* Presets */}
                         <div>
                             <label className={labelClass}>{t('settings.sections.presets')}</label>
@@ -506,7 +557,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </button>
                                 </div>
                             )}
-                            {(statusMsg && !pendingRestart) && <p className={`text-[9px] mt-2 text-center font-bold ${statusMsg.includes('Error') || statusMsg.includes('Failed') ? 'text-rose-500' : 'text-emerald-500'}`}>{statusMsg}</p>}
+                            {(statusMsg && !pendingRestart) && <p className={`text-[9px] mt-2 text-center font-bold ${statusMsg.includes('Error') || statusMsg.includes('Failed') || statusMsg.includes('Invalid') ? 'text-rose-500' : 'text-emerald-500'}`}>{statusMsg}</p>}
                             {!pendingRestart && <p className="text-[9px] text-slate-400 mt-2 text-center">{t('settings.backup.description')}</p>}
                         </div>
 

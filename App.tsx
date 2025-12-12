@@ -37,6 +37,7 @@ import { LayoutGroup } from 'framer-motion';
 import { GlobalLoader } from './components/ui/GlobalLoader';
 import { useSensoryFX } from './hooks/useSensoryFX';
 import { setGlobalReducedMotion } from './utils/animations';
+import { calculateMatchDeltas } from './utils/statsEngine';
 
 // LAZY LOADED CHUNKS
 const SettingsModal = lazy(() => import('./components/modals/SettingsModal').then(module => ({ default: module.SettingsModal })));
@@ -54,7 +55,8 @@ const GameContent = () => {
     resetMatch, generateTeams, togglePlayerFixed, removePlayer, movePlayer, updateTeamName, updateTeamColor,
     updatePlayerName, updatePlayerNumber, updatePlayerSkill, addPlayer, undoRemovePlayer, commitDeletions, 
     rotateTeams, setRotationMode, balanceTeams, savePlayerToProfile, revertPlayerChanges, upsertProfile, 
-    deleteProfile, sortTeam, toggleTeamBench, substitutePlayers, deletePlayer, reorderQueue, disbandTeam
+    deleteProfile, sortTeam, toggleTeamBench, substitutePlayers, deletePlayer, reorderQueue, disbandTeam,
+    batchUpdateStats, profiles
   } = game;
 
   const { t, language } = useTranslation();
@@ -100,7 +102,7 @@ const GameContent = () => {
     setGlobalReducedMotion(state.config.reducedMotion);
   }, [state.config.reducedMotion]);
 
-  // --- MATCH SAVING LOGIC ---
+  // --- MATCH SAVING LOGIC & PROFILE SYNC ---
   useEffect(() => {
     if (state.isMatchOver && state.matchWinner && !savedMatchIdRef.current) {
         if (state.history.length === 0 && state.scoreA === 0 && state.scoreB === 0) return;
@@ -125,18 +127,65 @@ const GameContent = () => {
             teamBRoster: state.teamBRoster
         };
         
+        // 1. Persist to History Store
         historyStore.addMatch(matchData);
-        setNotificationState({
-            visible: true,
-            type: 'success',
-            mainText: t('notifications.matchSaved'),
-            subText: t('notifications.matchSavedSub'),
-            systemIcon: 'save'
-        });
+
+        // 2. Sync Profile Stats (Data Integrity)
+        if (state.matchLog.length > 0) {
+            // Helper to map RosterID -> ProfileID
+            // We iterate both rosters to build a map of who played
+            const rosterToProfileMap = new Map<string, string>();
+            const playerTeamMap = new Map<string, TeamId>(); // Key is PROFILE ID
+
+            const mapPlayer = (p: any, tid: TeamId) => {
+                if (p.profileId) {
+                    rosterToProfileMap.set(p.id, p.profileId);
+                    playerTeamMap.set(p.profileId, tid);
+                }
+            };
+
+            state.teamARoster.players.forEach(p => mapPlayer(p, 'A'));
+            state.teamARoster.reserves?.forEach(p => mapPlayer(p, 'A'));
+            state.teamBRoster.players.forEach(p => mapPlayer(p, 'B'));
+            state.teamBRoster.reserves?.forEach(p => mapPlayer(p, 'B'));
+
+            // Calculate Deltas based on MATCH LOG (which uses RosterIDs)
+            // But we need to attribute them to ProfileIDs
+            // The `calculateMatchDeltas` function logic will need a slight adjustment or we pre-process the log.
+            // Actually, we can just process the log here locally or map it.
+            
+            // Let's use the statsEngine but we need to map the log IDs first
+            const mappedLog = state.matchLog.map(log => {
+                if (log.type === 'POINT' && log.playerId) {
+                    return { ...log, playerId: rosterToProfileMap.get(log.playerId) || log.playerId };
+                }
+                return log;
+            });
+
+            const deltas = calculateMatchDeltas(mappedLog, state.matchWinner, playerTeamMap);
+            batchUpdateStats(deltas);
+            
+            setNotificationState({
+                visible: true,
+                type: 'success',
+                mainText: t('notifications.matchSaved'),
+                subText: t('notifications.profileSynced'),
+                systemIcon: 'save'
+            });
+        } else {
+            setNotificationState({
+                visible: true,
+                type: 'success',
+                mainText: t('notifications.matchSaved'),
+                subText: t('notifications.matchSavedSub'),
+                systemIcon: 'save'
+            });
+        }
+
     } else if (!state.isMatchOver && savedMatchIdRef.current) {
         savedMatchIdRef.current = null;
     }
-  }, [state.isMatchOver, state.matchWinner, historyStore, t]);
+  }, [state.isMatchOver, state.matchWinner, historyStore, t, batchUpdateStats, state.matchLog, state.teamARoster, state.teamBRoster]);
 
   // --- SCORE ANNOUNCER ---
   useScoreAnnouncer({ state, enabled: state.config.announceScore });
@@ -179,6 +228,11 @@ const GameContent = () => {
     haptics.impact('heavy');
     subtractPoint('B');
   }, [subtractPoint, audio, haptics]);
+
+  const handleSetServerA = useCallback(() => setServer('A'), [setServer]);
+  const handleSetServerB = useCallback(() => setServer('B'), [setServer]);
+  const handleTimeoutA = useCallback(() => useTimeout('A'), [useTimeout]);
+  const handleTimeoutB = useCallback(() => useTimeout('B'), [useTimeout]);
 
   const handleUndo = useCallback(() => {
     if (state.isMatchOver && savedMatchIdRef.current) {
@@ -321,8 +375,8 @@ const GameContent = () => {
           teamId="A" team={state.teamARoster} score={state.scoreA} setsWon={state.setsA}
           isServing={state.servingTeam === 'A'}
           onAdd={handleAddA} onSubtract={handleSubA}
-          onSetServer={() => setServer('A')}
-          timeouts={state.timeoutsA} onTimeout={() => useTimeout('A')}
+          onSetServer={handleSetServerA}
+          timeouts={state.timeoutsA} onTimeout={handleTimeoutA}
           isMatchPoint={game.isMatchPointA} isSetPoint={game.isSetPointA}
           isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
           setsNeededToWin={game.setsNeededToWin}
@@ -336,8 +390,8 @@ const GameContent = () => {
           teamId="B" team={state.teamBRoster} score={state.scoreB} setsWon={state.setsB}
           isServing={state.servingTeam === 'B'}
           onAdd={handleAddB} onSubtract={handleSubB}
-          onSetServer={() => setServer('B')}
-          timeouts={state.timeoutsB} onTimeout={() => useTimeout('B')}
+          onSetServer={handleSetServerB}
+          timeouts={state.timeoutsB} onTimeout={handleTimeoutB}
           isMatchPoint={game.isMatchPointB} isSetPoint={game.isSetPointB}
           isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
           setsNeededToWin={game.setsNeededToWin}
@@ -383,12 +437,12 @@ const GameContent = () => {
                     colorB={state.teamBRoster.color || 'rose'}
                     isServingLeft={state.servingTeam === (state.swappedSides ? 'B' : 'A')}
                     isServingRight={state.servingTeam === (state.swappedSides ? 'A' : 'B')}
-                    onSetServerA={() => setServer('A')}
-                    onSetServerB={() => setServer('B')}
+                    onSetServerA={handleSetServerA}
+                    onSetServerB={handleSetServerB}
                     timeoutsA={state.timeoutsA}
                     timeoutsB={state.timeoutsB}
-                    onTimeoutA={() => useTimeout('A')}
-                    onTimeoutB={() => useTimeout('B')}
+                    onTimeoutA={handleTimeoutA}
+                    onTimeoutB={handleTimeoutB}
                     isMatchPointA={game.isMatchPointA}
                     isSetPointA={game.isSetPointA}
                     isMatchPointB={game.isMatchPointB}

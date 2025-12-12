@@ -5,11 +5,13 @@
  */
 
 const MAX_INPUT_LENGTH = 30; // Max chars for names
-const ALLOWED_CHARS_REGEX = /[^a-zA-Z0-9 \-\.\'\u00C0-\u00FF]/g; // Alphanumeric, spaces, basic punctuation, accents
+// Updated regex to strictly filter dangerous HTML characters and scripts
+const DANGEROUS_PATTERNS = /[<>/"'`\\]/g; 
+const SCRIPT_PATTERNS = /(javascript:|data:|vbscript:)/gi;
 
 /**
  * Sanitizes user input to prevent XSS and generic injection.
- * Uses a strict whitelist approach (Allow-list).
+ * Uses a strict blocking approach for dangerous chars.
  * 
  * @param input The raw string input
  * @param maxLength Optional override for max length
@@ -21,11 +23,13 @@ export const sanitizeInput = (input: string, maxLength: number = MAX_INPUT_LENGT
   // 1. Trim whitespace
   let clean = input.trim();
   
-  // 2. Remove characters not in the allow-list
-  // This effectively strips < > / ; ( ) and other dangerous chars used in XSS
-  clean = clean.replace(ALLOWED_CHARS_REGEX, '');
+  // 2. Remove dangerous protocol prefixes
+  clean = clean.replace(SCRIPT_PATTERNS, '');
+
+  // 3. Remove dangerous HTML characters
+  clean = clean.replace(DANGEROUS_PATTERNS, '');
   
-  // 3. Enforce Max Length to prevent DoS via large payloads
+  // 4. Enforce Max Length to prevent DoS via large payloads
   if (clean.length > maxLength) {
     clean = clean.substring(0, maxLength);
   }

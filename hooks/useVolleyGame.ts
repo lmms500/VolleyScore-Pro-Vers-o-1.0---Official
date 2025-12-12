@@ -1,13 +1,15 @@
 
-import { useCallback, useEffect, useReducer, useMemo } from 'react';
+import { useCallback, useEffect, useReducer, useMemo, useState, useRef } from 'react';
 import { GameState, TeamId, GameConfig, SkillType, PlayerProfile, TeamColor, RotationMode, PlayerRole } from '../types';
 import { DEFAULT_CONFIG, SETS_TO_WIN_MATCH } from '../constants';
 import { gameReducer } from '../reducers/gameReducer';
 import { usePlayerProfiles } from './usePlayerProfiles';
 import { createPlayer } from '../utils/rosterLogic';
 import { useTimer } from '../contexts/TimerContext';
+import { SecureStorage } from '../services/SecureStorage';
 
-const STORAGE_KEY = 'volleyscore_game_state_v2';
+// Key for the ACTIVE game being played
+const ACTIVE_GAME_KEY = 'action_log'; // Maintaining legacy key name for compatibility during migration, but moving to IDB
 
 const INITIAL_STATE: GameState = {
   teamAName: 'Home',
@@ -41,20 +43,22 @@ const INITIAL_STATE: GameState = {
 
 export const useVolleyGame = () => {
   const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
+  const [isLoaded, setIsLoaded] = useState(false);
+  
   const { profiles, upsertProfile, deleteProfile, isReady: profilesReady, batchUpdateStats } = usePlayerProfiles();
   const { setSeconds, start: startTimer, stop: stopTimer, reset: resetTimer, getTime } = useTimer();
 
-  // --- PERSISTENCE: Load from LocalStorage ---
+  // Ref to track saving timeout to debounce writes
+  const saveTimeoutRef = useRef<any>(null);
+
+  // --- PERSISTENCE: Load from SecureStorage (Async) ---
   useEffect(() => {
-    const loadGame = () => {
+    const loadGame = async () => {
       try {
-        if (typeof window === 'undefined') return;
+        // Use SecureStorage (IndexedDB) for robust large object storage
+        const savedState = await SecureStorage.load<GameState>(ACTIVE_GAME_KEY);
         
-        const savedString = localStorage.getItem(STORAGE_KEY);
-        
-        if (savedString) { 
-          const savedState = JSON.parse(savedString);
-          
+        if (savedState) { 
           // Schema Migration & Defaults
           if(!savedState.config) savedState.config = DEFAULT_CONFIG;
           else {
@@ -103,26 +107,38 @@ export const useVolleyGame = () => {
         dispatch({ type: 'ROSTER_ENSURE_TEAM_IDS' });
 
       } catch (e) {
-        console.error("Failed to load game state from localStorage.", e);
+        console.error("Failed to load game state from SecureStorage.", e);
+      } finally {
+          setIsLoaded(true);
       }
     };
     loadGame();
   }, [setSeconds, startTimer]);
 
-  // --- PERSISTENCE: Save to LocalStorage (Sync Timer) ---
+  // --- PERSISTENCE: Save to SecureStorage (Debounced) ---
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!isLoaded) return; 
     
-    const { lastSnapshot, ...stateToSave } = state;
-    // INJECT CURRENT TIMER VALUE FOR STORAGE
-    stateToSave.matchDurationSeconds = getTime();
-    
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-    } catch(e) {
-        console.error("Failed to save game state to localStorage", e);
+    // Clear previous pending save
+    if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
     }
-  }, [state, getTime]);
+
+    // Debounce save operation by 500ms to prevent UI stutter during rapid interactions
+    saveTimeoutRef.current = setTimeout(() => {
+        const { lastSnapshot, ...stateToSave } = state;
+        // INJECT CURRENT TIMER VALUE FOR STORAGE
+        stateToSave.matchDurationSeconds = getTime();
+        
+        // Fire and forget save (SecureStorage handles queuing/async)
+        SecureStorage.save(ACTIVE_GAME_KEY, stateToSave);
+    }, 500);
+
+    return () => {
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+    
+  }, [state, getTime, isLoaded]);
 
   // --- TIMER CONTROL ---
   // Sync Timer Context with Game State Logic
@@ -275,6 +291,26 @@ export const useVolleyGame = () => {
       }
   }, [state, profiles]);
 
+  /**
+   * INJECT STATE (Portability Feature)
+   * Forces the game state to match the provided object.
+   */
+  const loadStateFromFile = useCallback((newState: GameState) => {
+      // 1. Reset Timer first to avoid conflicts
+      resetTimer();
+      
+      // 2. Set Timer to imported value
+      setSeconds(newState.matchDurationSeconds || 0);
+      
+      // 3. Dispatch Load
+      dispatch({ type: 'LOAD_STATE', payload: newState });
+      
+      // 4. If game was running, resume timer
+      if (newState.isTimerRunning && !newState.isMatchOver) {
+          startTimer();
+      }
+  }, [resetTimer, setSeconds, startTimer]);
+
   // Derived Values
   const isTieBreak = state.config.hasTieBreak && state.currentSet === state.config.maxSets;
   const pointsToWinCurrentSet = isTieBreak ? state.config.tieBreakPoints : state.config.pointsPerSet;
@@ -296,7 +332,7 @@ export const useVolleyGame = () => {
   return useMemo(() => ({
     state,
     setState: setStateWrapper,
-    isLoaded: true,
+    isLoaded,
     addPoint, subtractPoint, undo, resetMatch, toggleSides, setServer, useTimeout, applySettings, 
     canUndo: state.actionLog.length > 0 || !!state.lastSnapshot, 
     isMatchActive,
@@ -332,6 +368,7 @@ export const useVolleyGame = () => {
     disbandTeam,
     rotationMode: state.rotationMode,
     profiles,
+    loadStateFromFile, // Exposed for Import functionality
 
     isTieBreak,
     isMatchPointA: statusA.isMatchPoint,
@@ -342,10 +379,10 @@ export const useVolleyGame = () => {
     setsNeededToWin,
     isDeuce
   }), [
-    state, addPoint, subtractPoint, undo, resetMatch, toggleSides, setServer, useTimeout, applySettings, isMatchActive, rotateTeams, 
+    state, isLoaded, addPoint, subtractPoint, undo, resetMatch, toggleSides, setServer, useTimeout, applySettings, isMatchActive, rotateTeams, 
     isTieBreak, statusA, statusB, pointsToWinCurrentSet, setsNeededToWin, isDeuce,
     generateTeams, updateTeamName, updateTeamColor, updatePlayerName, updatePlayerNumber, updatePlayerSkill, movePlayer, removePlayer,
     deletePlayer, addPlayer, undoRemovePlayer, togglePlayerFixed, commitDeletions, setRotationMode, balanceTeams, sortTeam,
-    savePlayerToProfile, revertPlayerChanges, deleteProfile, upsertProfile, toggleTeamBench, substitutePlayers, profiles, reorderQueue, disbandTeam, batchUpdateStats
+    savePlayerToProfile, revertPlayerChanges, deleteProfile, upsertProfile, toggleTeamBench, substitutePlayers, profiles, reorderQueue, disbandTeam, batchUpdateStats, loadStateFromFile
   ]);
 };

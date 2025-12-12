@@ -1,5 +1,4 @@
 
-
 import { GameState, TeamId, SetHistory, ActionLog, Team, Player, SkillType, GameAction } from '../types';
 import { SETS_TO_WIN_MATCH, MIN_LEAD_TO_WIN } from '../constants';
 import { isValidTimeoutRequest, sanitizeInput } from '../utils/security';
@@ -271,8 +270,10 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         return {
             ...state,
             scoreA: 0, scoreB: 0, setsA: 0, setsB: 0, currentSet: 1, history: [],
-            actionLog: [rotationAction], // Start new log with this rotation, allowing Undo
-            matchLog: [...state.matchLog, rotationAction], 
+            actionLog: [rotationAction], 
+            // CRITICAL FIX: Reset matchLog to only contain the rotation event.
+            // This prevents the new match from inheriting the history of the previous match.
+            matchLog: [rotationAction], 
             isMatchOver: false, matchWinner: null, servingTeam: null, 
             timeoutsA: 0, timeoutsB: 0, inSuddenDeath: false, 
             matchDurationSeconds: 0, isTimerRunning: false,

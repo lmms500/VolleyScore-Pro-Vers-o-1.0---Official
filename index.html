@@ -6,16 +6,26 @@
     <meta name="theme-color" content="#020617" />
     <meta name="description" content="Advanced Volleyball Scoreboard & Team Management PWA with rotation logic, sudden death rules, and neo-glass UI.">
     
-    <!-- Security: Content Security Policy -->
+    <!-- Security: Permissive Dev CSP -->
+    <!-- 
+      FIX: Expanded policies to allow:
+      - cdn.tailwindcss.com (CSS/Scripts)
+      - esm.sh (Import maps)
+      - data: (Base64 scripts/images)
+      - unsafe-eval/inline (Required for HMR & Runtime compilation)
+      - *.google.com (AI Studio & Auth)
+    -->
     <meta http-equiv="Content-Security-Policy" content="
-      default-src * 'unsafe-inline' 'unsafe-eval' data: blob: filesystem: about: ws: wss:;
-      script-src * 'unsafe-inline' 'unsafe-eval' data: blob: filesystem: about:;
-      connect-src * 'unsafe-inline' 'unsafe-eval' data: blob: filesystem: about: ws: wss:;
-      img-src * data: blob: filesystem: about:;
-      frame-src * data: blob: filesystem: about:;
-      style-src * 'unsafe-inline';
-      worker-src * data: blob: filesystem: about:;
-      font-src * data:;
+      default-src 'self' https://*.google.com https://*.googleapis.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://esm.sh https://apis.google.com https://*.google.com https://*.gstatic.com data:;
+      style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com;
+      img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com;
+      font-src 'self' data: https://fonts.gstatic.com;
+      connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com https://identitytoolkit.googleapis.com wss: ws: data: blob: filesystem:;
+      worker-src 'self' blob:;
+      frame-src 'self' https://*.firebaseapp.com;
+      object-src 'none';
+      base-uri 'self';
     ">
 
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -89,6 +99,13 @@
         
         /* Remove tap highlight color */
         -webkit-tap-highlight-color: transparent;
+        
+        /* Prevent accidental selection on hold */
+        user-select: none;
+        -webkit-user-select: none;
+        
+        /* CRITICAL: Disables native browser touch actions (zoom, pan) to allow app logic to handle it */
+        touch-action: none;
       }
       
       /* Global Smooth Theme Transition */
@@ -130,6 +147,14 @@
       .no-scrollbar {
         -ms-overflow-style: none;
         scrollbar-width: none;
+      }
+
+      /* Re-enable touch-action for specific scrollable areas */
+      .custom-scrollbar, .overflow-y-auto, .overflow-x-auto {
+          touch-action: pan-y; /* Allow vertical scroll */
+      }
+      .touch-pan-x {
+          touch-action: pan-x; /* Allow horizontal scroll explicitly */
       }
 
       /* Mask Utilities for Scroll Indicators (Gradient Fade) */
