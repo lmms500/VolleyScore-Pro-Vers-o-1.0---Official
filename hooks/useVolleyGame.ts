@@ -49,6 +49,15 @@ export const useVolleyGame = () => {
   const { setSeconds, start: startTimer, stop: stopTimer, reset: resetTimer, getTime } = useTimer();
 
   const saveTimeoutRef = useRef<any>(null);
+  
+  // --- OPTIMISTIC LOCKING ---
+  // Stores "TeamID:Number" keys to prevent duplicates during rapid updates (Race Condition Fix)
+  const optimisticNumberLocks = useRef<Set<string>>(new Set());
+
+  // Clear locks whenever state updates (Source of truth has caught up)
+  useEffect(() => {
+      optimisticNumberLocks.current.clear();
+  }, [state.teamARoster, state.teamBRoster, state.queue]);
 
   // --- PERSISTENCE: Load ---
   useEffect(() => {
@@ -122,8 +131,48 @@ export const useVolleyGame = () => {
 
   // --- ROSTER ACTIONS (Smart Linking & Validation) ---
   
+  // Helper to find exact team object for validation
+  const findTeamForPlayer = useCallback((playerId: string): Team | undefined => {
+      // Check Court A
+      if (state.teamARoster.players.some(p => p.id === playerId) || (state.teamARoster.reserves || []).some(p => p.id === playerId)) {
+          return state.teamARoster;
+      }
+      // Check Court B
+      if (state.teamBRoster.players.some(p => p.id === playerId) || (state.teamBRoster.reserves || []).some(p => p.id === playerId)) {
+          return state.teamBRoster;
+      }
+      // Check Queue
+      for (const t of state.queue) {
+          if (t.players.some(p => p.id === playerId) || (t.reserves || []).some(p => p.id === playerId)) {
+              return t;
+          }
+      }
+      return undefined;
+  }, [state.teamARoster, state.teamBRoster, state.queue]);
+
   const updatePlayer = useCallback((playerId: string, updates: Partial<Player>) => {
-      // Logic for profile sync moved to Reducer or useEffect, but here we can handle immediate data push
+      // 🛡️ SECURITY LAYER 3: Validate Number Uniqueness on Store Update
+      if (updates.number !== undefined && updates.number !== '') {
+          const team = findTeamForPlayer(playerId);
+          if (team) {
+              const roster = [...team.players, ...(team.reserves || [])];
+              const result = validateUniqueNumber(roster, updates.number, playerId);
+              
+              if (!result.valid) {
+                  console.warn(`[Store Integrity] Blocked update: Number ${updates.number} conflict in team ${team.name}.`);
+                  return { success: false, error: result.message };
+              }
+
+              // 🔒 OPTIMISTIC LOCK: Check against pending updates (Race Condition Protection)
+              const lockKey = `${team.id}:${updates.number.trim()}`;
+              if (optimisticNumberLocks.current.has(lockKey)) {
+                  console.warn(`[Race Condition] Blocked rapid update for ${lockKey}`);
+                  return { success: false, error: `O número ${updates.number} já está sendo atribuído.` };
+              }
+              optimisticNumberLocks.current.add(lockKey);
+          }
+      }
+
       // Dispatch update to Reducer
       dispatch({ type: 'ROSTER_UPDATE_PLAYER', playerId, updates });
 
@@ -152,14 +201,15 @@ export const useVolleyGame = () => {
               }
           }
       }
-  }, [state, profiles, upsertProfile]);
+      return { success: true };
+  }, [state, profiles, upsertProfile, findTeamForPlayer]);
 
   const updateTeamName = useCallback((teamId: string, name: string) => dispatch({ type: 'ROSTER_UPDATE_TEAM_NAME', teamId, name }), []);
   const updateTeamColor = useCallback((teamId: string, color: TeamColor) => dispatch({ type: 'ROSTER_UPDATE_TEAM_COLOR', teamId, color }), []);
   const togglePlayerFixed = useCallback((id: string) => dispatch({ type: 'ROSTER_TOGGLE_FIXED', playerId: id }), []);
   const toggleTeamBench = useCallback((teamId: string) => dispatch({ type: 'ROSTER_TOGGLE_BENCH', teamId }), []);
   
-  // 🛡️ REFACTORED: ADD PLAYER WITH AUTO-LINKING
+  // 🛡️ REFACTORED: ADD PLAYER WITH AUTO-LINKING & VALIDATION
   const addPlayer = useCallback((name: string, target: string, number?: string, skill?: number, existingPlayer?: Player): { success: boolean, error?: string } => {
       let p: Player;
       
@@ -209,8 +259,23 @@ export const useVolleyGame = () => {
           }
       }
 
-      // VALIDATION: REMOVED per user request
-      // We no longer check for unique numbers here.
+      // 🛡️ SECURITY LAYER 2: INTERCEPT & VALIDATE
+      // Check number uniqueness in the target team
+      if (targetTeam && p.number) {
+          const roster = [...targetTeam.players, ...(targetTeam.reserves || [])];
+          const result = validateUniqueNumber(roster, p.number); // No excludeId because it's a new player
+          
+          if (!result.valid) {
+              return { success: false, error: result.message };
+          }
+
+          // 🔒 OPTIMISTIC LOCK: Check against pending adds
+          const lockKey = `${targetTeam.id}:${p.number.trim()}`;
+          if (optimisticNumberLocks.current.has(lockKey)) {
+              return { success: false, error: `O número ${p.number} já está sendo atribuído.` };
+          }
+          optimisticNumberLocks.current.add(lockKey);
+      }
 
       dispatch({ type: 'ROSTER_ADD_PLAYER', player: p, targetId: target });
       return { success: true };

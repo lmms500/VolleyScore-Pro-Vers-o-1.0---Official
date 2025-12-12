@@ -21,7 +21,7 @@ import { NotificationToast } from '../ui/NotificationToast';
 import { useGameAudio } from '../../hooks/useGameAudio';
 import { PlayerCard } from '../PlayerCard';
 import { staggerContainer, staggerItem, liquidSpring } from '../../utils/animations';
-import { isNumberAvailable } from '../../utils/rosterLogic';
+import { validateUniqueNumberInTeam } from '../../utils/rosterLogic';
 
 const SortableContextFixed = SortableContext as any;
 const DragOverlayFixed = DragOverlay as any;
@@ -44,7 +44,7 @@ interface TeamManagerModalProps {
   onUpdateTeamColor: (teamId: string, color: TeamColor) => void;
   
   // Unified Handler replacing individual update functions
-  onUpdatePlayer: (playerId: string, updates: Partial<Player>) => void;
+  onUpdatePlayer: (playerId: string, updates: Partial<Player>) => { success: boolean, error?: string } | void;
 
   onSaveProfile: (playerId: string, overrides?: { name?: string, number?: string, avatar?: string, skill?: number, role?: PlayerRole }) => void;
   onRevertProfile: (playerId: string) => void;
@@ -161,7 +161,7 @@ const AddPlayerInput = memo(({ onAdd, disabled, customLabel }: { onAdd: (name: s
     return <button onClick={() => !disabled && setIsOpen(true)} disabled={disabled} className={`mt-2 w-full py-3 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest rounded-xl border border-dashed transition-all ${disabled ? 'border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed' : 'border-slate-300 dark:border-slate-700 text-slate-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10'}`} >{disabled ? <><Ban size={14} /> {t('common.full')}</> : <>{isBenchLabel ? <Armchair size={14} className="text-emerald-500" /> : <Plus size={14} />} {labelContent}</>}</button>;
 });
 
-const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamColor, onUpdatePlayer, onSaveProfile, onAddPlayer, onKnockoutRequest, usedColors, isQueue = false, onMove, toggleTeamBench, substitutePlayers, statsMap, onRequestProfileEdit, onViewProfile, onTogglePlayerMenu, activePlayerMenuId, isNext = false, validateNumber, onDisband, onReorder, queueIndex, queueSize, isDragOver, onShowToast }: any) => {
+const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamColor, onUpdatePlayer, onSaveProfile, onAddPlayer, onKnockoutRequest, usedColors, isQueue = false, onMove, toggleTeamBench, substitutePlayers, statsMap, onRequestProfileEdit, onViewProfile, onTogglePlayerMenu, activePlayerMenuId, isNext = false, onDisband, onReorder, queueIndex, queueSize, isDragOver, onShowToast }: any) => {
   const { t } = useTranslation();
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'main' | 'reserves'>('main'); 
@@ -207,6 +207,16 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
           onShowToast(result.error || "Cannot add player.", 'error');
       }
   }, [onAddPlayer, id, viewMode, onShowToast]);
+
+  // Validates a number change against this team's roster
+  const validateNumber = useCallback((num: string, playerId: string): boolean => {
+      const result = validateUniqueNumberInTeam(team, num, playerId);
+      if (!result.valid) {
+          onShowToast(result.message || "Invalid number", 'error');
+          return false;
+      }
+      return true;
+  }, [team, onShowToast]);
 
   const handleSubstitution = (pIn: string, pOut: string) => { substitutePlayers(id, pIn, pOut); };
   const applySort = (criteria: any) => { setSortConfig(prev => ({ criteria, direction: prev.criteria === criteria && prev.direction === 'asc' ? 'desc' : 'asc' })); setShowSortMenu(false); };
@@ -287,7 +297,7 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
                         isCompact={viewMode === 'reserves' || (window.innerWidth < 640 && !isQueue)} 
                         onToggleMenu={onTogglePlayerMenu} 
                         isMenuActive={activePlayerMenuId === p.id} 
-                        validateNumber={(n) => validateNumber(n, team.id, p.id)} 
+                        validateNumber={(n) => validateNumber(n, p.id)}
                         onShowToast={onShowToast} 
                     />
                 </motion.div>
@@ -496,16 +506,39 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
   }, [props.courtA, props.courtB, props.queue]);
 
   // --- VALIDATION LOGIC ---
-  // DISABLED: Always return true to allow duplicates per user request.
   const validateNumber = useCallback((number: string, teamId: string, playerId: string): boolean => {
+      let team = findTeamForPlayer(playerId);
+      if (!team) {
+          // If we can't find by player (new player?), try finding by teamId
+          if (teamId === 'A') team = props.courtA;
+          else if (teamId === 'B') team = props.courtB;
+          else team = props.queue.find(t => t.id === teamId);
+      }
+      
+      if (team) {
+          const result = validateUniqueNumberInTeam(team, number, playerId);
+          if (!result.valid) {
+              return false;
+          }
+      }
       return true;
-  }, []);
+  }, [props.courtA, props.courtB, props.queue, findTeamForPlayer]);
 
   // --- UPDATE HANDLER ---
   const handleUpdatePlayerWrapper = useCallback((playerId: string, updates: Partial<Player>) => {
-      // Validation Removed: Direct update call
-      onUpdatePlayer(playerId, updates);
-  }, [onUpdatePlayer]);
+      const result = onUpdatePlayer(playerId, updates);
+      
+      if (result && result.success === false) {
+          haptics.notification('error');
+          setToast({
+              message: "Update Failed",
+              subText: result.error || "Duplicate number.",
+              visible: true,
+              type: 'error',
+              systemIcon: 'block'
+          });
+      }
+  }, [onUpdatePlayer, haptics]);
 
   const wrappedUpdateColor = useCallback((id: string, color: TeamColor) => { props.onUpdateTeamColor(id, color); }, [props.onUpdateTeamColor]);
   

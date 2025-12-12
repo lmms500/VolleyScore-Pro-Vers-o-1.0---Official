@@ -7,6 +7,14 @@ import { sanitizeInput } from './security';
 
 const BENCH_LIMIT = 6;
 
+// --- TYPES ---
+export interface ValidationResult {
+    valid: boolean;
+    message?: string;
+    conflictId?: string;
+    conflictName?: string;
+}
+
 // Helper to find a player anywhere in the game state structure passed as args
 export const findAllPlayers = (courtA: Team, courtB: Team, queue: Team[]) => {
     return [
@@ -17,18 +25,52 @@ export const findAllPlayers = (courtA: Team, courtB: Team, queue: Team[]) => {
 };
 
 /**
- * Strict check if a number is available in a specific team.
- * UPDATED: Always returns TRUE to disable uniqueness enforcement per user request.
+ * 🧠 BUSINESSS CORE: Single Number Constraint
+ * Enforces that no two players in the same team roster (players + reserves) share the same number.
  */
-export const isNumberAvailable = (team: Team, number: string | undefined, excludePlayerId?: string): boolean => {
-    // Logic disabled: Always allow any number
-    return true;
+export const validateUniqueNumber = (
+    roster: Player[], 
+    candidateNumber: string | undefined, 
+    excludePlayerId?: string
+): ValidationResult => {
+    // 1. Allow empty numbers (optional numbers)
+    if (!candidateNumber || candidateNumber.trim() === '') {
+        return { valid: true };
+    }
+
+    const normalizedCandidate = candidateNumber.trim();
+
+    // 2. Scan roster for conflicts
+    const conflict = roster.find(p => 
+        p.number === normalizedCandidate && 
+        p.id !== excludePlayerId // Ignore self
+    );
+
+    if (conflict) {
+        return {
+            valid: false,
+            message: `O número ${normalizedCandidate} já pertence a ${conflict.name}.`,
+            conflictId: conflict.id,
+            conflictName: conflict.name
+        };
+    }
+
+    return { valid: true };
 };
 
-// Deprecated legacy alias to prevent build breaks if imported elsewhere, but redirects to new logic
-export const validateUniqueNumber = (team: Team, number: string | undefined, ignorePlayerId?: string): boolean => {
-    return isNumberAvailable(team, number, ignorePlayerId);
+// Legacy wrapper ensuring compatibility with boolean checks, but redirecting to new logic
+export const isNumberAvailable = (team: Team, number: string | undefined, excludePlayerId?: string): boolean => {
+    const roster = [...team.players, ...(team.reserves || [])];
+    return validateUniqueNumber(roster, number, excludePlayerId).valid;
 };
+
+export const validateUniqueNumberInTeam = (team: Team, number: string, excludeId?: string): ValidationResult => {
+    const roster = [...team.players, ...(team.reserves || [])];
+    return validateUniqueNumber(roster, number, excludeId);
+}
+
+// Deprecated legacy alias
+export const validateUniqueNumberLegacy = isNumberAvailable;
 
 export const createPlayer = (name: string, index: number, profileId?: string, skillLevel: number = 5, number?: string): Player => ({
     id: uuidv4(),
@@ -56,7 +98,7 @@ export const handleAddPlayer = (
     newPlayer: Player, targetId: string
 ): { courtA: Team, courtB: Team, queue: Team[] } => {
     
-    // Duplicate Check (Name-based prevention within active game)
+    // Duplicate Name Check (Global within active game context to prevent confusion)
     const all = findAllPlayers(courtA, courtB, queue);
     if (all.some(p => p.name.toLowerCase() === newPlayer.name.toLowerCase())) {
         return { courtA, courtB, queue }; 

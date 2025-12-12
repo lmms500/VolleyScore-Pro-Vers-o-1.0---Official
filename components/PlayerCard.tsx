@@ -87,8 +87,12 @@ const EditableNumber = memo(({ number, onSave, validator }: { number?: string; o
             // Shake/Flash error and revert
             setTimeout(() => {
                 setError(false);
-                setIsEditing(false); 
-                setVal(number || ''); // Reset to original
+                // Keep editing open so user can fix it, or revert. Reverting is safer to avoid frustration.
+                // Reverting to original value visually but keeping editing active might be better UX?
+                // For simplicity, let's revert value and close. Or keep editing active.
+                // Let's keep editing active but revert the value? No, user loses input.
+                // Just keep editing active and focus.
+                inputRef.current?.focus();
             }, 600); 
             return; // ABORT SAVE
         }
@@ -101,7 +105,7 @@ const EditableNumber = memo(({ number, onSave, validator }: { number?: string; o
         return (
             <input 
                 ref={inputRef} type="tel" maxLength={3}
-                className={`w-7 h-7 bg-white dark:bg-black/50 text-center rounded-md border outline-none text-xs font-bold text-slate-800 dark:text-white shadow-sm ${error ? 'border-red-500 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 animate-pulse' : 'border-indigo-500'}`}
+                className={`w-7 h-7 bg-white dark:bg-black/50 text-center rounded-md border outline-none text-xs font-bold text-slate-800 dark:text-white shadow-sm transition-all ${error ? 'border-red-500 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 animate-[shake_0.4s_ease-in-out]' : 'border-indigo-500'}`}
                 value={val} onChange={e => { setVal(e.target.value); setError(false); }}
                 onBlur={save} onKeyDown={e => { if(e.key === 'Enter') save(); if(e.key === 'Escape') setIsEditing(false); }}
                 onPointerDown={e => e.stopPropagation()} 
