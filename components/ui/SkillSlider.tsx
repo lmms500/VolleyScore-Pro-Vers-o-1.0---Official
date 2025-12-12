@@ -38,9 +38,8 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
     };
     
     if (isExpanded) {
-      // Listen for the custom event dispatched by TeamManagerModal lists
       window.addEventListener('team-manager-scroll', handleScrollDismiss);
-      window.addEventListener('scroll', handleScrollDismiss, { capture: true }); // Global capture as backup
+      window.addEventListener('scroll', handleScrollDismiss, { capture: true });
     }
 
     return () => {
@@ -50,18 +49,17 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
   }, [isExpanded]);
 
   const handleToggle = (e: React.MouseEvent | React.TouchEvent) => {
+    // CRITICAL: Stop propagation to prevent drag initiation on the parent card
     e.stopPropagation();
-    e.preventDefault(); 
+    // e.preventDefault(); // Removed to allow click through if needed, but stopPropagation is key
     
     if (disabled) return;
 
     if (!isExpanded) {
         if (containerRef.current) {
-            // Find parent card to center over it
             const card = containerRef.current.closest('[data-player-card]');
             const rect = card ? card.getBoundingClientRect() : containerRef.current.getBoundingClientRect();
             
-            // Calculate absolute center of the card
             setPosition({
                 top: rect.top + (rect.height / 2),
                 left: rect.left + (rect.width / 2)
@@ -74,6 +72,7 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
   };
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Immediate stop to prevent bubbling
     e.stopPropagation();
     onChange(Number(e.target.value));
   };
@@ -84,7 +83,7 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
       setIsExpanded(false);
   };
 
-  // Stop drag propagation to parent Sortable item
+  // Stop drag propagation to parent Sortable item immediately on touch down
   const handlePointerDown = (e: React.PointerEvent) => {
       e.stopPropagation();
   };
@@ -93,8 +92,8 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
     <>
         <div 
             ref={containerRef} 
-            className="relative flex items-center justify-center w-12 h-10 p-1 cursor-pointer"
-            onClick={(e) => e.stopPropagation()}
+            className="relative flex items-center justify-center w-12 h-10 p-1 cursor-pointer touch-none"
+            onClick={(e) => e.stopPropagation()} // Extra safety
             onPointerDown={handlePointerDown}
         >
             <motion.button
@@ -103,6 +102,8 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
                 onClick={handleToggle}
                 className="absolute inset-0 flex items-center justify-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-white/10 border border-black/5 dark:border-white/5 transition-transform shadow-sm"
                 disabled={disabled}
+                // Native event handling for React Native Web compat
+                onPointerDown={handlePointerDown}
             >
                 <Star size={14} className="text-slate-400" fill="currentColor" />
                 <span 
@@ -116,7 +117,7 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
 
         {isExpanded && position && createPortal(
             <>
-                {/* Backdrop to prevent interaction with other elements */}
+                {/* Backdrop */}
                 <div 
                     className="fixed inset-0 z-[9998] bg-transparent" 
                     onMouseDown={handleBackdropClick}
@@ -128,7 +129,7 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
                     style={{ 
                         top: position.top, 
                         left: position.left,
-                        transform: 'translate(-50%, -50%)', // Perfect centering
+                        transform: 'translate(-50%, -50%)',
                         width: 'max-content'
                     }}
                 >
@@ -140,7 +141,9 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
                             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                             className="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-full px-5 py-3 shadow-2xl border border-black/10 dark:border-white/10 ring-1 ring-black/5"
                             style={{ minWidth: '220px' }}
+                            // Capture all pointer events here to prevent leakage
                             onPointerDown={handlePointerDown}
+                            onClick={(e) => e.stopPropagation()}
                         >
                             <span 
                                 className="text-lg font-black w-8 text-center" 
@@ -149,8 +152,8 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
                                 {level}
                             </span>
                             
-                            {/* Custom Gradient Slider Track */}
-                            <div className="relative flex-1 h-6 flex items-center">
+                            {/* Slider Track */}
+                            <div className="relative flex-1 h-8 flex items-center">
                                 <input
                                     type="range"
                                     min="1"
@@ -158,13 +161,13 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
                                     step="1"
                                     value={level}
                                     onChange={handleSliderChange}
+                                    // Use pointer down to stop drag propagation from the range input itself
                                     onPointerDown={handlePointerDown}
-                                    className="relative z-10 w-full h-6 opacity-0 cursor-pointer touch-none"
+                                    className="relative z-20 w-full h-full opacity-0 cursor-pointer touch-none"
                                 />
                                 
-                                {/* Track Background */}
-                                <div className="absolute top-1/2 left-0 w-full h-2 -translate-y-1/2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                    {/* Fill Bar - Instant update (no transition) for responsiveness */}
+                                {/* Visual Track Background */}
+                                <div className="absolute top-1/2 left-0 w-full h-2 -translate-y-1/2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden pointer-events-none">
                                     <div 
                                         className="h-full rounded-full"
                                         style={{
@@ -174,15 +177,18 @@ export const SkillSlider: React.FC<SkillSliderProps> = memo(({ level, onChange, 
                                     />
                                 </div>
 
-                                {/* Thumb Mockup - Instant update (no transition) for responsiveness */}
+                                {/* Visual Thumb - Centered Logic */}
                                 <div 
-                                    className="absolute top-1/2 h-5 w-5 bg-white border-2 rounded-full shadow-md pointer-events-none flex items-center justify-center"
+                                    className="absolute top-1/2 h-6 w-6 bg-white border-2 rounded-full shadow-md pointer-events-none flex items-center justify-center z-10"
                                     style={{
-                                        left: `calc(${(level / 10) * 100}% - 10px)`, // Simple offset approximation
-                                        borderColor: currentColor,
-                                        transform: 'translateY(-50%)'
+                                        // Calculate percentage position
+                                        left: `${((level - 1) / 9) * 100}%`, // Normalize 1-10 to 0-100%
+                                        transform: 'translate(-50%, -50%)', // Center align the thumb
+                                        borderColor: currentColor
                                     }}
-                                />
+                                >
+                                    <div className={`w-2 h-2 rounded-full`} style={{ backgroundColor: currentColor }} />
+                                </div>
                             </div>
                         </motion.div>
                     </AnimatePresence>

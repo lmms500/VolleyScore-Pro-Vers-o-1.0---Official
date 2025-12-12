@@ -22,6 +22,7 @@ interface PlayerCardProps {
 
     onSaveProfile: (id: string, overrides: { name: string, number?: string, avatar?: string, skill: number, role?: PlayerRole }) => void;
     onRequestProfileEdit: (id: string) => void;
+    onViewProfile: (id: string) => void; // New Prop for Read-Only View
     onToggleMenu: (playerId: string, targetElement: HTMLElement) => void;
     isMenuActive: boolean;
     validateNumber?: (n: string) => boolean;
@@ -56,7 +57,7 @@ const EditableTitle = memo(({ name, onSave, className }: { name: string; onSave:
       );
     }
     return (
-        <div className={`flex items-center gap-2 group cursor-pointer min-w-0 flex-1 ${className}`} onClick={() => setIsEditing(true)}>
+        <div className={`flex items-center gap-2 group cursor-pointer min-w-0 flex-1 ${className}`} onClick={() => setIsEditing(true)} onPointerDown={e => e.stopPropagation()}>
             <span className="truncate flex-1 min-w-0 block">{name}</span>
             <Edit2 size={10} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 flex-shrink-0" />
         </div>
@@ -108,7 +109,7 @@ const EditableNumber = memo(({ number, onSave, validator }: { number?: string; o
 
 export const PlayerCard = memo(({ 
     player, locationId, profile, 
-    onUpdatePlayer, onSaveProfile, onRequestProfileEdit, 
+    onUpdatePlayer, onSaveProfile, onRequestProfileEdit, onViewProfile,
     onToggleMenu, isMenuActive, validateNumber, onShowToast, forceDragStyle = false 
 }: PlayerCardProps) => {
   const haptics = useHaptics();
@@ -141,9 +142,17 @@ export const PlayerCard = memo(({
 
   const handleEditRequest = useCallback((e: React.MouseEvent) => {
       e.stopPropagation();
-      // Always open Edit modal when clicking the Sync/Edit button on the card
+      // Button always opens EDIT mode
       onRequestProfileEdit(player.id); 
   }, [player.id, onRequestProfileEdit]);
+
+  const handleViewRequest = useCallback((e: React.MouseEvent) => {
+      if (isLinked) {
+          e.stopPropagation();
+          // Body click opens VIEW mode (if linked)
+          onViewProfile(profile!.id);
+      }
+  }, [isLinked, profile, onViewProfile]);
 
   const handleMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
@@ -177,7 +186,7 @@ export const PlayerCard = memo(({
           syncColor = 'text-amber-500 hover:bg-amber-500/10 animate-pulse';
           syncTitle = "Unsaved Changes - Edit to Sync";
       } else {
-          SyncIcon = Edit2; // Changed from Check to Edit to signify action
+          SyncIcon = Edit2;
           syncColor = 'text-slate-400 hover:text-indigo-500 hover:bg-indigo-500/10';
           syncTitle = "Edit Profile";
       }
@@ -192,7 +201,8 @@ export const PlayerCard = memo(({
             <EditableNumber number={player.number} onSave={(v) => onUpdatePlayer(player.id, { number: v })} validator={validateNumber} />
         </div>
         
-        <div className="flex flex-1 items-center gap-2 min-w-0 px-2" onClick={handleEditRequest}>
+        {/* Main Body - View Trigger */}
+        <div className="flex flex-1 items-center gap-2 min-w-0 px-2" onClick={handleViewRequest}>
             {profile?.avatar && (
                 <span className="text-sm grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all flex-shrink-0">{profile.avatar}</span>
             )}
@@ -233,6 +243,7 @@ export const PlayerCard = memo(({
                 <SkillSlider level={player.skillLevel} onChange={(v) => onUpdatePlayer(player.id, { skillLevel: v })} />
             </div>
 
+            {/* Sync/Edit Button - Explicitly stops propagation to allow isolated click */}
             <button 
                 onClick={handleEditRequest} onPointerDown={e => e.stopPropagation()} 
                 className={`p-1.5 rounded-lg transition-colors ${syncColor}`} title={syncTitle}
