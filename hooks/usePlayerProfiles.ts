@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { PlayerProfile, PlayerRole, ProfileStats } from '../types';
 import { SecureStorage } from '../services/SecureStorage';
@@ -35,7 +36,6 @@ export const usePlayerProfiles = () => {
     const cleanName = name.trim();
     const now = Date.now();
     
-    // Check if updating existing or creating new
     let existing: PlayerProfile | undefined;
     if (id) {
         existing = profiles.get(id);
@@ -48,7 +48,7 @@ export const usePlayerProfiles = () => {
       number: extras?.number !== undefined ? extras.number : existing?.number,
       avatar: extras?.avatar !== undefined ? extras.avatar : existing?.avatar,
       role: extras?.role !== undefined ? extras.role : existing?.role,
-      stats: existing?.stats, // Preserve existing stats
+      stats: existing?.stats, 
       createdAt: existing?.createdAt || now,
       lastUpdated: now
     };
@@ -64,9 +64,7 @@ export const usePlayerProfiles = () => {
 
   /**
    * Batch updates statistics for multiple profiles at once.
-   * This is the "Sync Engine" entry point.
-   * 
-   * @param updates Map of ProfileID -> StatsDelta
+   * Called when a match finishes to sync stats to career totals.
    */
   const batchUpdateStats = useCallback((updates: Map<string, StatsDelta>) => {
     setProfiles((prev: Map<string, PlayerProfile>) => {
@@ -77,10 +75,6 @@ export const usePlayerProfiles = () => {
         const profile = next.get(profileId);
         if (profile) {
           const newStats = mergeStats(profile.stats, delta);
-          
-          // Basic MVP check (simplistic: if mvpScore > 10 in a match, count as MVP for now? 
-          // Real MVP logic is usually comparative per match, this is just accumulation)
-          // For V2, we just accumulate the raw stats. MVP calc happens at display time or Match Record level.
           
           next.set(profileId, {
             ...profile,
@@ -114,7 +108,7 @@ export const usePlayerProfiles = () => {
   const getProfile = useCallback((id: string) => profiles.get(id), [profiles]);
 
   return {
-    profiles, // Exposed for sync checking
+    profiles, 
     upsertProfile,
     deleteProfile,
     findProfileByName,

@@ -3,7 +3,7 @@ import React, { memo, useMemo, useCallback } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Player, PlayerProfile, PlayerRole } from '../types';
-import { Pin, Save, Check, MoreVertical, Hash, Edit2, RefreshCw, Shield, Hand, Zap, Target } from 'lucide-react';
+import { Pin, Save, Check, MoreVertical, Hash, Edit2, RefreshCw, Shield, Hand, Zap, Target, Swords, Trophy } from 'lucide-react';
 import { SkillSlider } from './ui/SkillSlider';
 import { useHaptics } from '../hooks/useHaptics';
 
@@ -11,10 +11,15 @@ interface PlayerCardProps {
     player: Player;
     locationId: string;
     profile?: PlayerProfile;
-    onUpdateName: (id: string, name: string) => void;
-    onUpdateNumber: (id: string, number: string) => void;
-    onUpdateSkill: (id: string, skill: number) => void;
-    // CRITICAL: This function must handle the "Handshake" (returning profileId to roster)
+    
+    // Legacy props replaced by onUpdatePlayer
+    onUpdateName?: (id: string, name: string) => void;
+    onUpdateNumber?: (id: string, number: string) => void;
+    onUpdateSkill?: (id: string, skill: number) => void;
+    
+    // New Unified Handler
+    onUpdatePlayer: (id: string, updates: Partial<Player>) => void;
+
     onSaveProfile: (id: string, overrides: { name: string, number?: string, avatar?: string, skill: number, role?: PlayerRole }) => void;
     onRequestProfileEdit: (id: string) => void;
     onToggleMenu: (playerId: string, targetElement: HTMLElement) => void;
@@ -24,8 +29,6 @@ interface PlayerCardProps {
     isCompact?: boolean;
     forceDragStyle?: boolean;
 }
-
-// --- SUB-COMPONENTS ---
 
 const EditableTitle = memo(({ name, onSave, className }: { name: string; onSave: (val: string) => void; className?: string }) => {
     const [isEditing, setIsEditing] = React.useState(false);
@@ -45,7 +48,6 @@ const EditableTitle = memo(({ name, onSave, className }: { name: string; onSave:
       return (
           <input 
               ref={inputRef} type="text"
-              // Added min-w-0 to prevent flex item expansion beyond container
               className={`bg-transparent text-slate-900 dark:text-white border-b border-indigo-500 outline-none w-full min-w-0 px-0 py-0 font-bold text-sm`}
               value={val} onChange={e => setVal(e.target.value)} onBlur={save}
               onKeyDown={e => { if(e.key === 'Enter') save(); if(e.key === 'Escape') setIsEditing(false); }}
@@ -54,7 +56,6 @@ const EditableTitle = memo(({ name, onSave, className }: { name: string; onSave:
       );
     }
     return (
-        // Added flex-1 and min-w-0 to ensure proper text truncation in flex container
         <div className={`flex items-center gap-2 group cursor-pointer min-w-0 flex-1 ${className}`} onClick={() => setIsEditing(true)}>
             <span className="truncate flex-1 min-w-0 block">{name}</span>
             <Edit2 size={10} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 flex-shrink-0" />
@@ -105,11 +106,9 @@ const EditableNumber = memo(({ number, onSave, validator }: { number?: string; o
     );
 });
 
-// --- MAIN COMPONENT ---
-
 export const PlayerCard = memo(({ 
     player, locationId, profile, 
-    onUpdateName, onUpdateNumber, onUpdateSkill, onSaveProfile, onRequestProfileEdit, 
+    onUpdatePlayer, onSaveProfile, onRequestProfileEdit, 
     onToggleMenu, isMenuActive, validateNumber, onShowToast, forceDragStyle = false 
 }: PlayerCardProps) => {
   const haptics = useHaptics();
@@ -129,11 +128,7 @@ export const PlayerCard = memo(({
       boxShadow: isDragging ? '0 10px 30px -10px rgba(0,0,0,0.3)' : 'none',
   };
   
-  // --- SYNC STATUS LOGIC ---
-  
   const isLinked = !!player.profileId && !!profile;
-  
-  // Check if Roster data differs from Profile data (Dirty State)
   const isDirty = useMemo(() => {
     if (!isLinked || !profile) return false;
     return (
@@ -146,14 +141,10 @@ export const PlayerCard = memo(({
 
   const handleSmartSave = useCallback((e: React.MouseEvent) => {
       e.stopPropagation();
-      
-      // Case 1: Unlinked (No Profile ID) -> Open Modal to Create/Link
       if (!isLinked) {
           onRequestProfileEdit(player.id);
           return;
       } 
-      
-      // Case 2: Linked but Dirty (Data Mismatch) -> Silent Update
       if (isDirty) {
           onSaveProfile(player.id, { 
               name: player.name, 
@@ -166,11 +157,8 @@ export const PlayerCard = memo(({
           if (onShowToast) onShowToast("Profile Synced", 'success');
           return;
       } 
-      
-      // Case 3: Already Synced -> Just Feedback
       haptics.impact('light');
       if (onShowToast) onShowToast("Already up to date", 'info');
-
   }, [isLinked, isDirty, player, profile, onSaveProfile, onRequestProfileEdit, haptics, onShowToast]);
 
   const handleMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -179,41 +167,32 @@ export const PlayerCard = memo(({
       onToggleMenu(player.id, e.currentTarget);
   };
 
-  // --- ROLE INDICATOR ---
   const activeRole = profile?.role || player.role || 'none';
   let RoleIcon = null;
   let roleColor = "";
-  
   if (activeRole === 'setter') { RoleIcon = Hand; roleColor = "text-amber-500"; }
   else if (activeRole === 'hitter') { RoleIcon = Zap; roleColor = "text-rose-500"; }
   else if (activeRole === 'middle') { RoleIcon = Target; roleColor = "text-indigo-500"; }
   else if (activeRole === 'libero') { RoleIcon = Shield; roleColor = "text-emerald-500"; }
 
-  // --- VISUAL STYLES ---
-
   const containerClass = forceDragStyle
     ? `bg-white dark:bg-slate-800 border-2 border-indigo-500 shadow-2xl z-50 ring-4 ring-indigo-500/20`
     : `bg-white/60 dark:bg-white/[0.04] hover:bg-white/80 dark:hover:bg-white/[0.08] border-transparent hover:border-black/5 dark:hover:border-white/10 transition-all duration-200`;
 
-  // Libero gets special background highlight if configured
   const specialClass = activeRole === 'libero' && !forceDragStyle ? 'bg-emerald-500/5 dark:bg-emerald-500/5 border-emerald-500/10' : '';
-  
   const fixedClass = player.isFixed ? 'bg-amber-500/5 border-amber-500/20 shadow-sm shadow-amber-500/5' : '';
   const reserveClass = locationId.includes('_Reserves') ? 'border-dashed border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-black/20' : '';
 
-  // Icon Determination
   let SyncIcon = Save;
   let syncColor = 'text-slate-300 hover:text-indigo-500 hover:bg-indigo-500/10';
   let syncTitle = "Save Profile";
 
   if (isLinked) {
       if (isDirty) {
-          // Amber: Needs Sync
           SyncIcon = RefreshCw; 
           syncColor = 'text-amber-500 hover:bg-amber-500/10 animate-pulse';
           syncTitle = "Unsaved Changes - Tap to Sync";
       } else {
-          // Green: All Good
           SyncIcon = Check;
           syncColor = 'text-emerald-500 hover:bg-emerald-500/10';
           syncTitle = "Synced";
@@ -225,24 +204,39 @@ export const PlayerCard = memo(({
         ref={setNodeRef} style={style} {...attributes} {...listeners} data-player-card="true" 
         className={`group relative flex items-center justify-between rounded-2xl border touch-manipulation py-1.5 px-2.5 min-h-[54px] ${forceDragStyle ? containerClass : (locationId.includes('_Reserves') ? reserveClass : (player.isFixed ? fixedClass : (specialClass || containerClass)))} ${!player.isFixed && !isMenuActive ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
-        {/* Left: Number (Fixed Width) */}
         <div className="flex items-center gap-2 flex-shrink-0 self-center">
-            <EditableNumber number={player.number} onSave={(v) => onUpdateNumber(player.id, v)} validator={validateNumber} />
+            <EditableNumber number={player.number} onSave={(v) => onUpdatePlayer(player.id, { number: v })} validator={validateNumber} />
         </div>
         
-        {/* Middle: Name (Fluid, Truncating) & Avatar */}
         <div className="flex flex-1 items-center gap-2 min-w-0 px-2">
             {profile?.avatar && (
                 <span className="text-sm grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all flex-shrink-0">{profile.avatar}</span>
             )}
             
-            <EditableTitle 
-                name={player.name} 
-                onSave={(v) => onUpdateName(player.id, v)} 
-                className={`text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100 leading-tight`} 
-            />
+            <div className="flex flex-col min-w-0 flex-1">
+                <EditableTitle 
+                    name={player.name} 
+                    onSave={(v) => onUpdatePlayer(player.id, { name: v })} 
+                    className={`text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100 leading-tight`} 
+                />
+                
+                {/* CAREER STATS PREVIEW (New Feature) */}
+                {profile?.stats && profile.stats.matchesPlayed > 0 && (
+                    <div className="flex items-center gap-2 mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                        {profile.stats.totalPoints > 0 && (
+                            <div className="flex items-center gap-0.5 text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 rounded">
+                                <Trophy size={8} /> {profile.stats.totalPoints}
+                            </div>
+                        )}
+                        {profile.stats.attacks > 0 && (
+                            <div className="flex items-center gap-0.5 text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 rounded">
+                                <Swords size={8} /> {profile.stats.attacks}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
             
-            {/* Role Icon */}
             {RoleIcon && (
                 <RoleIcon size={12} className={`${roleColor} flex-shrink-0`} strokeWidth={2.5} />
             )}
@@ -250,10 +244,9 @@ export const PlayerCard = memo(({
             {player.isFixed && <Pin size={12} className="text-amber-500 flex-shrink-0" fill="currentColor" />}
         </div>
         
-        {/* Right: Skill & Actions (Fixed Width) */}
         <div className="flex items-center gap-1 flex-shrink-0 relative z-30 self-center">
             <div className="flex items-center scale-100 origin-right mr-1">
-                <SkillSlider level={player.skillLevel} onChange={(v) => onUpdateSkill(player.id, v)} />
+                <SkillSlider level={player.skillLevel} onChange={(v) => onUpdatePlayer(player.id, { skillLevel: v })} />
             </div>
 
             <button 
@@ -273,17 +266,24 @@ export const PlayerCard = memo(({
     </div>
   );
 }, (prev, next) => {
-    // Heavy optimization: Compare props deeply to prevent re-renders
     if (prev.locationId !== next.locationId || prev.isCompact !== next.isCompact || prev.forceDragStyle !== next.forceDragStyle || prev.isMenuActive !== next.isMenuActive) return false;
     
     // Check Player changes
     const playerEq = prev.player.id === next.player.id && prev.player.name === next.player.name && prev.player.number === next.player.number && prev.player.skillLevel === next.player.skillLevel && prev.player.isFixed === next.player.isFixed && prev.player.profileId === next.player.profileId;
     if (!playerEq) return false;
 
-    // Check Profile changes (for sync status)
+    // Check Profile changes (Stats might update)
     if (prev.profile !== next.profile) {
         if (!prev.profile || !next.profile) return false;
-        if (prev.profile.name !== next.profile.name || prev.profile.skillLevel !== next.profile.skillLevel || prev.profile.number !== next.profile.number || prev.profile.avatar !== next.profile.avatar || prev.profile.role !== next.profile.role) return false;
+        if (
+            prev.profile.name !== next.profile.name || 
+            prev.profile.skillLevel !== next.profile.skillLevel || 
+            prev.profile.number !== next.profile.number || 
+            prev.profile.avatar !== next.profile.avatar || 
+            prev.profile.role !== next.profile.role ||
+            // Important: Check stats for update trigger
+            prev.profile.stats?.totalPoints !== next.profile.stats?.totalPoints
+        ) return false;
     }
     return true;
 });

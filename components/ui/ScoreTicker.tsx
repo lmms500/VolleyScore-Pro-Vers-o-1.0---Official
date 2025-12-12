@@ -10,14 +10,12 @@ interface ScoreTickerProps {
 }
 
 /**
- * ScoreTicker 2.4 (Glow-Safe Container)
+ * ScoreTicker v3.0 (GPU Optimized)
  * 
- * CRITICAL UPDATE:
- * Significantly increased vertical height and padding to ensure that when
- * text-shadow/drop-shadow is applied (Match Point Glow), it is NOT clipped
- * by the `mask-image` used for the scrolling effect.
- * 
- * The mask gradient now starts/ends much further out to allow the glow to fade naturally.
+ * Performance Update:
+ * - Added `transform: translateZ(0)` to force hardware acceleration.
+ * - Added `backface-visibility: hidden` to prevent flickering on some WebViews.
+ * - Added `will-change: transform, opacity` to hint the browser compositor.
  */
 export const ScoreTicker: React.FC<ScoreTickerProps> = memo(({ value, className, style }) => {
   const prevValue = useRef(value);
@@ -39,19 +37,16 @@ export const ScoreTicker: React.FC<ScoreTickerProps> = memo(({ value, className,
         className={`relative inline-flex justify-center items-center ${className}`} 
         style={{ 
             ...style,
-            // Expanded height (~2.5x font size) to allow huge shadow bloom without clipping
             height: '2.5em', 
-            // Min width prevents layout shift on narrow numbers
             minWidth: '1.2em', 
-            // CRITICAL: Large padding ensures the drop-shadow (glow) fits inside the mask area
             padding: '0.8em',
-            // Negative margin to counteract the padding for correct layout flow in parent
             margin: '-0.8em',
             isolation: 'isolate',
-            // Relaxed Mask: Fades out only at the very edges (top/bottom 15%)
             maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
             WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
-            overflow: 'visible' // Explicitly allow overflow logic where supported
+            overflow: 'visible',
+            // HARDWARE ACCELERATION HINT
+            willChange: 'transform'
         }}
     >
       <AnimatePresence mode="popLayout" custom={direction} initial={false}>
@@ -64,9 +59,11 @@ export const ScoreTicker: React.FC<ScoreTickerProps> = memo(({ value, className,
           exit="exit"
           className="block text-center leading-none origin-center absolute inset-0 flex items-center justify-center"
           style={{ 
-              willChange: "transform, opacity, filter", 
+              willChange: "transform, opacity", 
               backfaceVisibility: "hidden",
-              WebkitBackfaceVisibility: "hidden"
+              WebkitBackfaceVisibility: "hidden",
+              // Force GPU layer promotion
+              transform: 'translateZ(0)'
           }} 
         >
           {value}

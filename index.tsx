@@ -1,3 +1,4 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -6,7 +7,8 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import { Capacitor } from '@capacitor/core';
 
 // --- SECURITY CONTEXT INITIALIZATION ---
-// Strip console logs in production/native environments to prevent data leakage.
+// Strip console logs in production/native environments to prevent sensitive data leakage.
+// This is critical for avoiding PII leaks via logcat/xcode logs.
 if (process.env.NODE_ENV === 'production' || (Capacitor.isNativePlatform() && !(import.meta as any).env.DEV)) {
   const noop = () => {};
   console.log = noop;

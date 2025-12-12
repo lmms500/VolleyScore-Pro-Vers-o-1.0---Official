@@ -4,6 +4,7 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Match } from '../stores/historyStore';
 import { GameState } from '../types';
+import { sanitizeInput } from '../utils/security';
 
 /**
  * I/O Service
@@ -77,7 +78,30 @@ export const exportActiveMatch = async (gameState: GameState): Promise<void> => 
 };
 
 /**
+ * Recursively sanitizes string values in an object to prevent XSS from imported files.
+ */
+const deepSanitize = (obj: any): any => {
+    if (typeof obj === 'string') {
+        return sanitizeInput(obj);
+    }
+    if (Array.isArray(obj)) {
+        return obj.map(deepSanitize);
+    }
+    if (typeof obj === 'object' && obj !== null) {
+        const result: any = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                result[key] = deepSanitize(obj[key]);
+            }
+        }
+        return result;
+    }
+    return obj;
+};
+
+/**
  * Reads a File object and parses its content as JSON.
+ * Applies sanitization to all string fields.
  */
 export const parseJSONFile = (file: File): Promise<any> => {
   return new Promise((resolve, reject) => {
@@ -95,7 +119,11 @@ export const parseJSONFile = (file: File): Promise<any> => {
           throw new Error('File content is empty or invalid.');
         }
         const parsed = JSON.parse(result);
-        resolve(parsed);
+        
+        // Security: Sanitize all imported data
+        const cleanData = deepSanitize(parsed);
+        
+        resolve(cleanData);
       } catch (error) {
         reject(new Error('Invalid JSON format.'));
       }

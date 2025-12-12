@@ -29,7 +29,7 @@ import { useGameAudio } from './hooks/useGameAudio';
 import { useHaptics } from './hooks/useHaptics';
 import { useScoreAnnouncer } from './hooks/useScoreAnnouncer';
 import { TeamId, SkillType, TeamColor } from './types';
-import { Minimize2 } from 'lucide-react';
+import { Minimize2, Loader2 } from 'lucide-react';
 import { TimerProvider } from './contexts/TimerContext';
 import { AuthProvider } from './contexts/AuthContext'; 
 import { v4 as uuidv4 } from 'uuid';
@@ -40,20 +40,19 @@ import { setGlobalReducedMotion } from './utils/animations';
 import { calculateMatchDeltas } from './utils/statsEngine';
 
 // LAZY LOADED CHUNKS
-const SettingsModal = lazy(() => import('./components/modals/SettingsModal').then(module => ({ default: module.SettingsModal })));
-const TeamManagerModal = lazy(() => import('./components/modals/TeamManagerModal').then(module => ({ default: module.TeamManagerModal })));
-const MatchOverModal = lazy(() => import('./components/modals/MatchOverModal').then(module => ({ default: module.MatchOverModal })));
-const ConfirmationModal = lazy(() => import('./components/modals/ConfirmationModal').then(module => ({ default: module.ConfirmationModal })));
-const HistoryModal = lazy(() => import('./components/modals/HistoryModal').then(module => ({ default: module.HistoryModal })));
-const TutorialModal = lazy(() => import('./components/modals/TutorialModal').then(module => ({ default: module.TutorialModal })));
+const SettingsModal = lazy(() => import('./components/modals/SettingsModal').then(m => ({ default: m.SettingsModal })));
+const TeamManagerModal = lazy(() => import('./components/modals/TeamManagerModal').then(m => ({ default: m.TeamManagerModal })));
+const MatchOverModal = lazy(() => import('./components/modals/MatchOverModal').then(m => ({ default: m.MatchOverModal })));
+const ConfirmationModal = lazy(() => import('./components/modals/ConfirmationModal').then(m => ({ default: m.ConfirmationModal })));
+const HistoryModal = lazy(() => import('./components/modals/HistoryModal').then(m => ({ default: m.HistoryModal })));
+const TutorialModal = lazy(() => import('./components/modals/TutorialModal').then(m => ({ default: m.TutorialModal })));
 
-// Inner component to consume Context
 const GameContent = () => {
   const game = useGame();
   const { 
     state, addPoint, subtractPoint, setServer, useTimeout, undo, toggleSides, applySettings, 
     resetMatch, generateTeams, togglePlayerFixed, removePlayer, movePlayer, updateTeamName, updateTeamColor,
-    updatePlayerName, updatePlayerNumber, updatePlayerSkill, addPlayer, undoRemovePlayer, commitDeletions, 
+    updatePlayer, addPlayer, undoRemovePlayer, commitDeletions, 
     rotateTeams, setRotationMode, balanceTeams, savePlayerToProfile, revertPlayerChanges, upsertProfile, 
     deleteProfile, sortTeam, toggleTeamBench, substitutePlayers, deletePlayer, reorderQueue, disbandTeam,
     batchUpdateStats, profiles
@@ -94,13 +93,32 @@ const GameContent = () => {
   const audio = useGameAudio(state.config);
   const haptics = useHaptics(true);
 
-  // --- SENSORY ORCHESTRATION ---
   useSensoryFX(state);
 
-  // --- SYNC REDUCED MOTION ---
   useEffect(() => {
     setGlobalReducedMotion(state.config.reducedMotion);
   }, [state.config.reducedMotion]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') {
+      const meta = document.getElementById('csp-meta');
+      if (meta) {
+        const strictPolicy = `
+          default-src 'self' https://*.google.com https://*.googleapis.com;
+          script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://esm.sh https://apis.google.com https://*.google.com https://*.gstatic.com;
+          style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com;
+          img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com;
+          font-src 'self' data: https://fonts.gstatic.com;
+          connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com https://identitytoolkit.googleapis.com;
+          worker-src 'self' blob:;
+          frame-src 'self' https://*.firebaseapp.com;
+          object-src 'none';
+          base-uri 'self';
+        `;
+        meta.setAttribute('content', strictPolicy.replace(/\s{2,}/g, ' ').trim());
+      }
+    }
+  }, []);
 
   // --- MATCH SAVING LOGIC & PROFILE SYNC ---
   useEffect(() => {
@@ -127,19 +145,18 @@ const GameContent = () => {
             teamBRoster: state.teamBRoster
         };
         
-        // 1. Persist to History Store
         historyStore.addMatch(matchData);
 
-        // 2. Sync Profile Stats (Data Integrity)
+        // --- STATS SYNC ENGINE ---
         if (state.matchLog.length > 0) {
-            // Helper to map RosterID -> ProfileID
-            // We iterate both rosters to build a map of who played
+            // 1. Build a Map of RosterID -> ProfileID to link transient logs to permanent profiles
             const rosterToProfileMap = new Map<string, string>();
-            const playerTeamMap = new Map<string, TeamId>(); // Key is PROFILE ID
+            const playerTeamMap = new Map<string, TeamId>(); 
 
             const mapPlayer = (p: any, tid: TeamId) => {
                 if (p.profileId) {
                     rosterToProfileMap.set(p.id, p.profileId);
+                    // Map ProfileID to TeamID for Win/Loss calculation
                     playerTeamMap.set(p.profileId, tid);
                 }
             };
@@ -149,20 +166,20 @@ const GameContent = () => {
             state.teamBRoster.players.forEach(p => mapPlayer(p, 'B'));
             state.teamBRoster.reserves?.forEach(p => mapPlayer(p, 'B'));
 
-            // Calculate Deltas based on MATCH LOG (which uses RosterIDs)
-            // But we need to attribute them to ProfileIDs
-            // The `calculateMatchDeltas` function logic will need a slight adjustment or we pre-process the log.
-            // Actually, we can just process the log here locally or map it.
-            
-            // Let's use the statsEngine but we need to map the log IDs first
+            // 2. Normalize the Action Log: Replace transient Roster IDs with Profile IDs
             const mappedLog = state.matchLog.map(log => {
                 if (log.type === 'POINT' && log.playerId) {
-                    return { ...log, playerId: rosterToProfileMap.get(log.playerId) || log.playerId };
+                    const profileId = rosterToProfileMap.get(log.playerId);
+                    // If no profile linked, keep transient ID (it won't match any profile anyway)
+                    return { ...log, playerId: profileId || log.playerId };
                 }
                 return log;
             });
 
+            // 3. Calculate Deltas using Profile IDs
             const deltas = calculateMatchDeltas(mappedLog, state.matchWinner, playerTeamMap);
+            
+            // 4. Commit to Permanent Storage
             batchUpdateStats(deltas);
             
             setNotificationState({
@@ -187,7 +204,6 @@ const GameContent = () => {
     }
   }, [state.isMatchOver, state.matchWinner, historyStore, t, batchUpdateStats, state.matchLog, state.teamARoster, state.teamBRoster]);
 
-  // --- SCORE ANNOUNCER ---
   useScoreAnnouncer({ state, enabled: state.config.announceScore });
 
   const isAnyModalOpen = showSettings || showManager || showHistory || showResetConfirm || showFullscreenMenu || state.isMatchOver || tutorial.showTutorial;
@@ -202,12 +218,9 @@ const GameContent = () => {
 
   useNativeIntegration(game.isMatchActive, isFullscreen, handleNativeBack, isAnyModalOpen);
 
-  // --- ACTIONS WRAPPERS ---
-  
   const handleAddA = useCallback((teamId: TeamId, playerId?: string, skill?: any) => {
     const metadata = playerId ? { playerId, skill: skill as SkillType } : undefined;
-    // Note: Point sound is handled by useSensoryFX when state updates
-    audio.playTap(); // Immediate feedback
+    audio.playTap(); 
     addPoint('A', metadata);
   }, [addPoint, audio]);
 
@@ -242,58 +255,31 @@ const GameContent = () => {
     undo();
     audio.playUndo();
     haptics.impact('medium');
-    setNotificationState({
-        visible: true,
-        type: 'info',
-        mainText: t('notifications.actionUndone'),
-        subText: t('notifications.actionUndoneSub'),
-        systemIcon: 'undo'
-    });
+    setNotificationState({ visible: true, type: 'info', mainText: t('notifications.actionUndone'), subText: t('notifications.actionUndoneSub'), systemIcon: 'undo' });
   }, [state.isMatchOver, undo, historyStore, audio, haptics, t]);
 
   const handleToggleSides = useCallback(() => {
       toggleSides();
-      setNotificationState({
-          visible: true,
-          type: 'info',
-          mainText: t('notifications.sidesSwapped'),
-          subText: t('notifications.sidesSwappedSub'),
-          systemIcon: 'transfer'
-      });
+      setNotificationState({ visible: true, type: 'info', mainText: t('notifications.sidesSwapped'), subText: t('notifications.sidesSwappedSub'), systemIcon: 'transfer' });
   }, [toggleSides, t]);
 
-  // --- VOICE CONTROL ---
   const handleVoiceAddPoint = useCallback((team: TeamId, playerId?: string, skill?: SkillType) => {
       const metadata = playerId ? { playerId, skill } : undefined;
-      
-      if (team === 'A') addPoint('A', metadata);
-      else addPoint('B', metadata);
-      
+      if (team === 'A') addPoint('A', metadata); else addPoint('B', metadata);
       audio.playTap();
-      
       const players = team === 'A' ? state.teamARoster.players : state.teamBRoster.players;
       let displayName = team === 'A' ? state.teamAName : state.teamBName;
       let subInfo = t('notifications.forTeam', { teamName: team === 'A' ? state.teamAName : state.teamBName });
 
       if (playerId) {
-          if (playerId === 'unknown') {
-              displayName = t('scout.unknownPlayer');
-          } else {
+          if (playerId === 'unknown') displayName = t('scout.unknownPlayer');
+          else {
               const player = players.find(p => p.id === playerId);
               if (player) displayName = player.name;
           }
       }
-      
       const color = team === 'A' ? (state.teamARoster.color || 'indigo') : (state.teamBRoster.color || 'rose');
-      
-      setNotificationState({
-          visible: true, 
-          type: 'success', 
-          mainText: displayName, 
-          subText: subInfo, 
-          skill, 
-          color
-      });
+      setNotificationState({ visible: true, type: 'success', mainText: displayName, subText: subInfo, skill, color });
   }, [addPoint, state.teamARoster, state.teamBRoster, state.teamAName, state.teamBName, audio, t]);
 
   const handleVoiceSubtract = useCallback((team: TeamId) => {
@@ -360,42 +346,25 @@ const GameContent = () => {
       maxSets: state.config.maxSets
   });
 
-  const handleToggleFullscreen = () => {
-      setIsFullscreen(!isFullscreen);
-      haptics.impact('light');
-  };
-
+  const handleToggleFullscreen = () => { setIsFullscreen(!isFullscreen); haptics.impact('light'); };
   const handleInteractionStart = (team: TeamId) => setInteractingTeam(team);
   const handleInteractionEnd = () => setInteractingTeam(null);
 
-  // Define ScoreCards with Keys to enable physical DOM swapping
   const cardA = (
       <ScoreCardNormal 
-          key="card-A"
-          teamId="A" team={state.teamARoster} score={state.scoreA} setsWon={state.setsA}
-          isServing={state.servingTeam === 'A'}
-          onAdd={handleAddA} onSubtract={handleSubA}
-          onSetServer={handleSetServerA}
-          timeouts={state.timeoutsA} onTimeout={handleTimeoutA}
-          isMatchPoint={game.isMatchPointA} isSetPoint={game.isSetPointA}
-          isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
-          setsNeededToWin={game.setsNeededToWin}
-          colorTheme={state.teamARoster.color} config={state.config}
+          key="card-A" teamId="A" team={state.teamARoster} score={state.scoreA} setsWon={state.setsA} isServing={state.servingTeam === 'A'}
+          onAdd={handleAddA} onSubtract={handleSubA} onSetServer={handleSetServerA} timeouts={state.timeoutsA} onTimeout={handleTimeoutA}
+          isMatchPoint={game.isMatchPointA} isSetPoint={game.isSetPointA} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
+          setsNeededToWin={game.setsNeededToWin} colorTheme={state.teamARoster.color} config={state.config}
       />
   );
 
   const cardB = (
       <ScoreCardNormal 
-          key="card-B"
-          teamId="B" team={state.teamBRoster} score={state.scoreB} setsWon={state.setsB}
-          isServing={state.servingTeam === 'B'}
-          onAdd={handleAddB} onSubtract={handleSubB}
-          onSetServer={handleSetServerB}
-          timeouts={state.timeoutsB} onTimeout={handleTimeoutB}
-          isMatchPoint={game.isMatchPointB} isSetPoint={game.isSetPointB}
-          isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
-          setsNeededToWin={game.setsNeededToWin}
-          colorTheme={state.teamBRoster.color} config={state.config}
+          key="card-B" teamId="B" team={state.teamBRoster} score={state.scoreB} setsWon={state.setsB} isServing={state.servingTeam === 'B'}
+          onAdd={handleAddB} onSubtract={handleSubB} onSetServer={handleSetServerB} timeouts={state.timeoutsB} onTimeout={handleTimeoutB}
+          isMatchPoint={game.isMatchPointB} isSetPoint={game.isSetPointB} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
+          setsNeededToWin={game.setsNeededToWin} colorTheme={state.teamBRoster.color} config={state.config}
       />
   );
 
@@ -406,11 +375,8 @@ const GameContent = () => {
     <div className="relative w-full h-[100dvh] bg-slate-50 dark:bg-[#020617] overflow-hidden select-none touch-none">
         
         <BackgroundGlow 
-            isSwapped={state.swappedSides} 
-            isFullscreen={isFullscreen} 
-            colorA={state.teamARoster.color} 
-            colorB={state.teamBRoster.color}
-            lowPowerMode={state.config.lowGraphics}
+            isSwapped={state.swappedSides} isFullscreen={isFullscreen} 
+            colorA={state.teamARoster.color} colorB={state.teamBRoster.color} lowPowerMode={state.config.lowGraphics}
         />
         
         <SuddenDeathOverlay active={state.inSuddenDeath} />
@@ -419,182 +385,94 @@ const GameContent = () => {
             <>
                 <MeasuredFullscreenHUD 
                     placement={hudPlacement} 
-                    setsLeft={state.swappedSides ? state.setsB : state.setsA} 
-                    setsRight={state.swappedSides ? state.setsA : state.setsB} 
-                    colorLeft={state.swappedSides ? state.teamBRoster.color : state.teamARoster.color || 'indigo'} 
-                    colorRight={state.swappedSides ? state.teamARoster.color : state.teamBRoster.color || 'rose'}
+                    setsLeft={state.swappedSides ? state.setsB : state.setsA} setsRight={state.swappedSides ? state.setsA : state.setsB} 
+                    colorLeft={state.swappedSides ? state.teamBRoster.color : state.teamARoster.color || 'indigo'} colorRight={state.swappedSides ? state.teamARoster.color : state.teamBRoster.color || 'rose'}
                 />
-
                 <FloatingTopBar 
-                    currentSet={state.currentSet}
-                    isTieBreak={game.isTieBreak}
-                    onToggleTimer={() => game.setState({ type: 'TOGGLE_TIMER' })}
-                    onResetTimer={() => game.setState({ type: 'RESET_TIMER' })}
-                    isTimerRunning={state.isTimerRunning}
-                    teamNameA={state.teamAName}
-                    teamNameB={state.teamBName}
-                    colorA={state.teamARoster.color || 'indigo'}
-                    colorB={state.teamBRoster.color || 'rose'}
-                    isServingLeft={state.servingTeam === (state.swappedSides ? 'B' : 'A')}
-                    isServingRight={state.servingTeam === (state.swappedSides ? 'A' : 'B')}
-                    onSetServerA={handleSetServerA}
-                    onSetServerB={handleSetServerB}
-                    timeoutsA={state.timeoutsA}
-                    timeoutsB={state.timeoutsB}
-                    onTimeoutA={handleTimeoutA}
-                    onTimeoutB={handleTimeoutB}
-                    isMatchPointA={game.isMatchPointA}
-                    isSetPointA={game.isSetPointA}
-                    isMatchPointB={game.isMatchPointB}
-                    isSetPointB={game.isSetPointB}
-                    isDeuce={game.isDeuce}
-                    inSuddenDeath={state.inSuddenDeath}
-                    reverseLayout={state.swappedSides}
+                    currentSet={state.currentSet} isTieBreak={game.isTieBreak} onToggleTimer={() => game.setState({ type: 'TOGGLE_TIMER' })} onResetTimer={() => game.setState({ type: 'RESET_TIMER' })}
+                    isTimerRunning={state.isTimerRunning} teamNameA={state.teamAName} teamNameB={state.teamBName} colorA={state.teamARoster.color || 'indigo'} colorB={state.teamBRoster.color || 'rose'}
+                    isServingLeft={state.servingTeam === (state.swappedSides ? 'B' : 'A')} isServingRight={state.servingTeam === (state.swappedSides ? 'A' : 'B')}
+                    onSetServerA={handleSetServerA} onSetServerB={handleSetServerB} timeoutsA={state.timeoutsA} timeoutsB={state.timeoutsB}
+                    onTimeoutA={handleTimeoutA} onTimeoutB={handleTimeoutB} isMatchPointA={game.isMatchPointA} isSetPointA={game.isSetPointA}
+                    isMatchPointB={game.isMatchPointB} isSetPointB={game.isSetPointB} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} reverseLayout={state.swappedSides}
                 />
-
                 <FloatingControlBar 
-                    onUndo={handleUndo}
-                    canUndo={game.canUndo}
-                    onSwap={handleToggleSides}
-                    onReset={() => setShowResetConfirm(true)}
-                    onMenu={() => setShowFullscreenMenu(true)}
-                    voiceEnabled={state.config.voiceControlEnabled}
-                    isListening={isListening}
-                    onToggleListening={toggleListening}
+                    onUndo={handleUndo} canUndo={game.canUndo} onSwap={handleToggleSides} onReset={() => setShowResetConfirm(true)} onMenu={() => setShowFullscreenMenu(true)}
+                    voiceEnabled={state.config.voiceControlEnabled} isListening={isListening} onToggleListening={toggleListening}
                 />
-
-                <button
-                    onClick={() => setIsFullscreen(false)}
-                    className="absolute top-4 right-4 z-[60] p-2 rounded-full bg-black/20 dark:bg-white/10 hover:bg-black/40 dark:hover:bg-white/20 backdrop-blur-md text-slate-300 dark:text-slate-400 hover:text-white transition-all active:scale-95 border border-white/5"
-                >
+                <button onClick={() => setIsFullscreen(false)} className="absolute top-4 right-4 z-[60] p-2 rounded-full bg-black/20 dark:bg-white/10 hover:bg-black/40 dark:hover:bg-white/20 backdrop-blur-md text-slate-300 dark:text-slate-400 hover:text-white transition-all active:scale-95 border border-white/5">
                     <Minimize2 size={18} strokeWidth={2} />
                 </button>
             </>
         )}
 
         <FullscreenMenuDrawer 
-            isOpen={showFullscreenMenu}
-            onClose={() => setShowFullscreenMenu(false)}
-            onOpenSettings={() => setShowSettings(true)}
-            onOpenRoster={() => setShowManager(true)}
-            onOpenHistory={() => setShowHistory(true)}
-            onExitFullscreen={() => setIsFullscreen(false)}
+            isOpen={showFullscreenMenu} onClose={() => setShowFullscreenMenu(false)} onOpenSettings={() => setShowSettings(true)}
+            onOpenRoster={() => setShowManager(true)} onOpenHistory={() => setShowHistory(true)} onExitFullscreen={() => setIsFullscreen(false)}
         />
 
         <div className={`relative w-full h-full flex flex-col ${isFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
-            
             {!isFullscreen && (
                 <HistoryBar 
-                    history={state.history} 
-                    setsA={state.setsA} 
-                    setsB={state.setsB} 
-                    colorA={state.teamARoster.color || 'indigo'}
-                    colorB={state.teamBRoster.color || 'rose'}
+                    history={state.history} setsA={state.setsA} setsB={state.setsB} 
+                    colorA={state.teamARoster.color || 'indigo'} colorB={state.teamBRoster.color || 'rose'}
                 />
             )}
-            
             <LayoutGroup>
                 <div className={`flex-1 flex ${containerLayoutClass} gap-2 sm:gap-4 min-h-0 my-2 sm:my-4 justify-between`}>
-                    
                     {isFullscreen ? (
                         <>
                             <ScoreCardFullscreen 
-                                teamId="A" team={state.teamARoster} score={state.scoreA}
-                                onAdd={handleAddA} onSubtract={handleSubA}
-                                isMatchPoint={game.isMatchPointA} isSetPoint={game.isSetPointA}
-                                isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
-                                colorTheme={state.teamARoster.color}
-                                isLocked={interactingTeam === 'B'}
-                                onInteractionStart={() => handleInteractionStart('A')}
-                                onInteractionEnd={handleInteractionEnd}
-                                reverseLayout={state.swappedSides}
-                                scoreRefCallback={setScoreElA}
-                                isServing={state.servingTeam === 'A'}
-                                config={state.config}
+                                teamId="A" team={state.teamARoster} score={state.scoreA} onAdd={handleAddA} onSubtract={handleSubA}
+                                isMatchPoint={game.isMatchPointA} isSetPoint={game.isSetPointA} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
+                                colorTheme={state.teamARoster.color} isLocked={interactingTeam === 'B'} onInteractionStart={() => handleInteractionStart('A')}
+                                onInteractionEnd={handleInteractionEnd} reverseLayout={state.swappedSides} scoreRefCallback={setScoreElA} isServing={state.servingTeam === 'A'} config={state.config}
                             />
                             <ScoreCardFullscreen 
-                                teamId="B" team={state.teamBRoster} score={state.scoreB}
-                                onAdd={handleAddB} onSubtract={handleSubB}
-                                isMatchPoint={game.isMatchPointB} isSetPoint={game.isSetPointB}
-                                isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
-                                colorTheme={state.teamBRoster.color}
-                                isLocked={interactingTeam === 'A'}
-                                onInteractionStart={() => handleInteractionStart('B')}
-                                onInteractionEnd={handleInteractionEnd}
-                                reverseLayout={state.swappedSides}
-                                scoreRefCallback={setScoreElB}
-                                isServing={state.servingTeam === 'B'}
-                                config={state.config}
+                                teamId="B" team={state.teamBRoster} score={state.scoreB} onAdd={handleAddB} onSubtract={handleSubB}
+                                isMatchPoint={game.isMatchPointB} isSetPoint={game.isSetPointB} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath}
+                                colorTheme={state.teamBRoster.color} isLocked={interactingTeam === 'A'} onInteractionStart={() => handleInteractionStart('B')}
+                                onInteractionEnd={handleInteractionEnd} reverseLayout={state.swappedSides} scoreRefCallback={setScoreElB} isServing={state.servingTeam === 'B'} config={state.config}
                             />
                         </>
-                    ) : (
-                        normalCards
-                    )}
+                    ) : ( normalCards )}
                 </div>
             </LayoutGroup>
             
             {!isFullscreen && (
                 <Controls 
-                    onUndo={handleUndo} canUndo={game.canUndo}
-                    onSwap={handleToggleSides} onSettings={() => setShowSettings(true)}
-                    onRoster={() => setShowManager(true)} onHistory={() => setShowHistory(true)}
-                    onReset={() => setShowResetConfirm(true)} onToggleFullscreen={handleToggleFullscreen}
+                    onUndo={handleUndo} canUndo={game.canUndo} onSwap={handleToggleSides} onSettings={() => setShowSettings(true)}
+                    onRoster={() => setShowManager(true)} onHistory={() => setShowHistory(true)} onReset={() => setShowResetConfirm(true)} onToggleFullscreen={handleToggleFullscreen}
                     voiceEnabled={state.config.voiceControlEnabled} isListening={isListening} onToggleListening={toggleListening}
                 />
             )}
         </div>
 
-        <Suspense fallback={<GlobalLoader />}>
-            <SettingsModal 
-                isOpen={showSettings} onClose={() => setShowSettings(false)} 
-                config={state.config} isMatchActive={game.isMatchActive}
-                onSave={(newConfig, reset) => { applySettings(newConfig, reset); setShowSettings(false); }}
-            />
-
-            <TeamManagerModal 
-                isOpen={showManager} onClose={() => setShowManager(false)}
-                courtA={state.teamARoster} courtB={state.teamBRoster} queue={state.queue}
-                onGenerate={generateTeams}
-                onUpdateTeamName={updateTeamName} onUpdateTeamColor={updateTeamColor}
-                onUpdatePlayerName={updatePlayerName} onUpdatePlayerNumber={updatePlayerNumber}
-                onUpdatePlayerSkill={updatePlayerSkill} onToggleFixed={togglePlayerFixed}
-                onRemove={removePlayer} onDeletePlayer={deletePlayer} onMove={movePlayer}
-                onAddPlayer={addPlayer} onUndoRemove={undoRemovePlayer} canUndoRemove={game.hasDeletedPlayers}
-                onCommitDeletions={commitDeletions} deletedCount={game.deletedCount}
-                onSetRotationMode={setRotationMode} rotationMode={game.rotationMode}
-                onBalanceTeams={balanceTeams} onSaveProfile={savePlayerToProfile}
-                onRevertProfile={revertPlayerChanges} deleteProfile={deleteProfile}
-                upsertProfile={upsertProfile} profiles={game.profiles}
-                onSortTeam={sortTeam} toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers}
-                matchLog={state.matchLog}
-                enablePlayerStats={state.config.enablePlayerStats}
-                reorderQueue={reorderQueue}
-                disbandTeam={disbandTeam}
-            />
-
-            <MatchOverModal 
-                isOpen={state.isMatchOver} state={state}
-                onRotate={rotateTeams} onReset={resetMatch} onUndo={handleUndo}
-            />
-
-            <ConfirmationModal 
-                isOpen={showResetConfirm} onClose={() => setShowResetConfirm(false)}
-                onConfirm={resetMatch} title="Reset Match?" message="Are you sure?"
-            />
-
-            <HistoryModal isOpen={showHistory} onClose={() => setShowHistory(false)} />
-
-            <TutorialModal 
-                isOpen={tutorial.showTutorial} onClose={tutorial.completeTutorial}
-                onInstall={pwa.promptInstall} canInstall={pwa.isInstallable} isIOS={pwa.isIOS} isStandalone={pwa.isStandalone}
-            />
+        <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm"><div className="bg-white dark:bg-slate-900 p-4 rounded-full shadow-xl"><Loader2 className="animate-spin text-indigo-500" /></div></div>}>
+            {showSettings && <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} config={state.config} isMatchActive={game.isMatchActive} onSave={(newConfig, reset) => { applySettings(newConfig, reset); setShowSettings(false); }} />}
+            {showManager && (
+                <TeamManagerModal 
+                    isOpen={showManager} onClose={() => setShowManager(false)}
+                    courtA={state.teamARoster} courtB={state.teamBRoster} queue={state.queue}
+                    onGenerate={generateTeams} onUpdateTeamName={updateTeamName} onUpdateTeamColor={updateTeamColor}
+                    onUpdatePlayer={updatePlayer}
+                    onToggleFixed={togglePlayerFixed} onRemove={removePlayer} onDeletePlayer={deletePlayer} onMove={movePlayer}
+                    onAddPlayer={addPlayer} onUndoRemove={undoRemovePlayer} canUndoRemove={game.hasDeletedPlayers} onCommitDeletions={commitDeletions}
+                    deletedCount={game.deletedCount} onSetRotationMode={setRotationMode} rotationMode={game.rotationMode}
+                    onBalanceTeams={balanceTeams} onSaveProfile={savePlayerToProfile} onRevertProfile={revertPlayerChanges}
+                    deleteProfile={deleteProfile} upsertProfile={upsertProfile} profiles={game.profiles} onSortTeam={sortTeam}
+                    toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} matchLog={state.matchLog}
+                    enablePlayerStats={state.config.enablePlayerStats} reorderQueue={reorderQueue} disbandTeam={disbandTeam}
+                />
+            )}
+            {state.isMatchOver && <MatchOverModal isOpen={state.isMatchOver} state={state} onRotate={rotateTeams} onReset={resetMatch} onUndo={handleUndo} />}
+            {showResetConfirm && <ConfirmationModal isOpen={showResetConfirm} onClose={() => setShowResetConfirm(false)} onConfirm={resetMatch} title="Reset Match?" message="Are you sure?" />}
+            {showHistory && <HistoryModal isOpen={showHistory} onClose={() => setShowHistory(false)} />}
+            {tutorial.showTutorial && <TutorialModal isOpen={tutorial.showTutorial} onClose={tutorial.completeTutorial} onInstall={pwa.promptInstall} canInstall={pwa.isInstallable} isIOS={pwa.isIOS} isStandalone={pwa.isStandalone} />}
         </Suspense>
         
         <ReloadPrompt />
-        <InstallReminder 
-            isVisible={tutorial.showReminder} onInstall={pwa.promptInstall}
-            onDismiss={tutorial.dismissReminder} canInstall={pwa.isInstallable} isIOS={pwa.isIOS}
-        />
+        <InstallReminder isVisible={tutorial.showReminder} onInstall={pwa.promptInstall} onDismiss={tutorial.dismissReminder} canInstall={pwa.isInstallable} isIOS={pwa.isIOS} />
         <NotificationToast 
             visible={notificationState.visible} type={notificationState.type} mainText={notificationState.mainText}
             subText={notificationState.subText} teamColor={notificationState.color} skill={notificationState.skill}

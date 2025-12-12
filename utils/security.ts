@@ -5,9 +5,9 @@
  */
 
 const MAX_INPUT_LENGTH = 30; // Max chars for names
-// Updated regex to strictly filter dangerous HTML characters and scripts
+// Strict filtering of dangerous HTML characters and scripts
 const DANGEROUS_PATTERNS = /[<>/"'`\\]/g; 
-const SCRIPT_PATTERNS = /(javascript:|data:|vbscript:)/gi;
+const SCRIPT_PATTERNS = /(javascript:|data:|vbscript:|on\w+=)/gi;
 
 /**
  * Sanitizes user input to prevent XSS and generic injection.
@@ -23,7 +23,7 @@ export const sanitizeInput = (input: string, maxLength: number = MAX_INPUT_LENGT
   // 1. Trim whitespace
   let clean = input.trim();
   
-  // 2. Remove dangerous protocol prefixes
+  // 2. Remove dangerous protocol prefixes and event handlers
   clean = clean.replace(SCRIPT_PATTERNS, '');
 
   // 3. Remove dangerous HTML characters

@@ -6,18 +6,18 @@
     <meta name="theme-color" content="#020617" />
     <meta name="description" content="Advanced Volleyball Scoreboard & Team Management PWA with rotation logic, sudden death rules, and neo-glass UI.">
     
-    <!-- Security: Permissive Dev CSP -->
     <!-- 
-      FIX: Expanded policies to allow:
-      - cdn.tailwindcss.com (CSS/Scripts)
-      - esm.sh (Import maps)
-      - data: (Base64 scripts/images)
-      - unsafe-eval/inline (Required for HMR & Runtime compilation)
-      - *.google.com (AI Studio & Auth)
+      SECURITY: ADAPTIVE CSP (DEVELOPMENT MODE)
+      This policy is permissive to allow:
+      1. AI Studio Preview functionality (*.google.com, unsafe-eval)
+      2. Hot Module Replacement (WSS, unsafe-inline)
+      3. External CDNs (Tailwind, Fonts)
+      
+      NOTE: App.tsx will inject a STRICTER policy at runtime if NODE_ENV === 'production'.
     -->
-    <meta http-equiv="Content-Security-Policy" content="
+    <meta id="csp-meta" http-equiv="Content-Security-Policy" content="
       default-src 'self' https://*.google.com https://*.googleapis.com;
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://esm.sh https://apis.google.com https://*.google.com https://*.gstatic.com data:;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://esm.sh https://apis.google.com https://*.google.com https://*.gstatic.com data: blob:;
       style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com;
       img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com;
       font-src 'self' data: https://fonts.gstatic.com;
@@ -42,7 +42,7 @@
     
     <title>VolleyScore Pro 2</title>
     
-    <!-- Dependencies -->
+    <!-- Dependencies: Latest Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       // FIX: Configure Tailwind to use 'class' strategy for dark mode

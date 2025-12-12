@@ -8,14 +8,13 @@ import { get, set, del } from 'idb-keyval';
  * 
  * Architecture:
  * - Uses Web Crypto API (AES-GCM 256-bit) to encrypt all data before storage.
- * - Stores unique encryption key in a separate IndexedDB store (simulated keystore).
+ * - Stores unique encryption key in IndexedDB (idb-keyval) which is separate from LocalStorage.
  * - Fallback to plain JSON parsing if decryption fails (Migration Strategy).
  * - Universal adapter for Web/PWA and Native environments.
  */
 
 const APP_PREFIX = 'vs_pro_v3_';
-const KEYSTORE_NAME = 'vs_secure_keystore';
-const MASTER_KEY_ID = 'master_enc_key';
+const MASTER_KEY_ID = 'master_enc_key_v1';
 
 // Wrapper for stored data containing IV and Ciphertext
 interface EncryptedEnvelope {
@@ -33,8 +32,8 @@ const isCryptoAvailable = (): boolean => {
 
 const getOrGenerateKey = async (): Promise<CryptoKey> => {
   try {
-    // 1. Try to fetch existing key from separate keystore DB
-    const exportedKey = await get<JsonWebKey>(MASTER_KEY_ID, createKeystore());
+    // 1. Try to fetch existing key from IDB
+    const exportedKey = await get<JsonWebKey>(MASTER_KEY_ID);
     
     if (exportedKey) {
       return await window.crypto.subtle.importKey(
@@ -53,25 +52,15 @@ const getOrGenerateKey = async (): Promise<CryptoKey> => {
       ['encrypt', 'decrypt']
     );
 
-    // 3. Export and save key
+    // 3. Export and save key securely
     const exportRaw = await window.crypto.subtle.exportKey('jwk', key);
-    await set(MASTER_KEY_ID, exportRaw, createKeystore());
+    await set(MASTER_KEY_ID, exportRaw);
     
     return key;
   } catch (e) {
     console.error("Crypto Key Error:", e);
     throw new Error("Failed to initialize secure storage key.");
   }
-};
-
-// Custom IDB store for keys to separate them logically from data
-const createKeystore = () => {
-  // We reuse idb-keyval's default store logic but point to a different DB name if possible,
-  // or just rely on the key prefix. For simplicity in this library wrapper, we use custom store if available,
-  // or just a different key namespace. 
-  // NOTE: idb-keyval `createStore` is available in newer versions.
-  // Fallback: We use the default store but this key ID is reserved.
-  return undefined; 
 };
 
 export const SecureStorage = {
@@ -152,7 +141,8 @@ export const SecureStorage = {
       try {
         envelope = JSON.parse(raw);
       } catch {
-        return null; // Corrupted
+        // If JSON parse fails, it might be raw string data or corrupted
+        return null; 
       }
 
       // 3. Attempt Decryption
