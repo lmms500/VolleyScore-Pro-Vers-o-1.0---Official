@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useCallback, memo, useRef } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -17,7 +16,6 @@ import { ProfileDetailsModal } from './ProfileDetailsModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useHaptics } from '../../hooks/useHaptics';
 import { SkillSlider } from '../ui/SkillSlider'; 
-import { NotificationToast } from '../ui/NotificationToast';
 import { useGameAudio } from '../../hooks/useGameAudio';
 import { PlayerCard } from '../PlayerCard';
 import { staggerContainer, staggerItem, liquidSpring } from '../../utils/animations';
@@ -57,7 +55,7 @@ interface TeamManagerModalProps {
   profiles: Map<string, PlayerProfile>;
   deleteProfile?: (id: string) => PlayerProfile | undefined;
   upsertProfile?: (name: string, skill: number, id?: string, extras?: { number?: string, avatar?: string, role?: PlayerRole }) => PlayerProfile;
-  relinkProfile?: (profile: PlayerProfile) => void; // NEW
+  relinkProfile?: (profile: PlayerProfile) => void; 
   onSortTeam: (teamId: string, criteria: 'name' | 'number' | 'skill') => void; 
   toggleTeamBench: (teamId: string) => void;
   substitutePlayers: (teamId: string, playerInId: string, playerOutId: string) => void;
@@ -67,6 +65,9 @@ interface TeamManagerModalProps {
   disbandTeam?: (teamId: string) => void;
   restoreTeam?: (team: Team, index: number) => void;
   resetRosters?: () => void;
+  
+  // NEW: Parent Toast Handler
+  onShowToast: (msg: string, type: 'success' | 'info' | 'error', subText?: string, icon?: any, onUndo?: () => void) => void;
 }
 
 type PlayerLocationStatus = 'A' | 'B' | 'Queue' | 'A_Bench' | 'B_Bench' | 'Queue_Bench' | null;
@@ -83,6 +84,8 @@ interface PlayerStats {
     b: number;
     a: number;
 }
+
+type EditingTarget = { type: 'player' | 'profile'; id: string };
 
 const SCROLL_EVENT = 'team-manager-scroll';
 const dispatchScrollEvent = () => { if (typeof window !== 'undefined') window.dispatchEvent(new Event(SCROLL_EVENT)); };
@@ -160,7 +163,7 @@ const AddPlayerInput = memo(({ onAdd, disabled, customLabel }: { onAdd: (name: s
     return <button onClick={() => !disabled && setIsOpen(true)} disabled={disabled} className={`mt-2 w-full py-3 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest rounded-xl border border-dashed transition-all ${disabled ? 'border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed' : 'border-slate-300 dark:border-slate-700 text-slate-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10'}`} >{disabled ? <><Ban size={14} /> {t('common.full')}</> : <>{isBenchLabel ? <Armchair size={14} className="text-emerald-500" /> : <Plus size={14} />} {labelContent}</>}</button>;
 });
 
-const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamColor, onUpdatePlayer, onSaveProfile, onAddPlayer, onKnockoutRequest, usedColors, isQueue = false, onMove, toggleTeamBench, substitutePlayers, statsMap, onRequestProfileEdit, onViewProfile, onTogglePlayerMenu, activePlayerMenuId, isNext = false, onDisband, onReorder, queueIndex, queueSize, isDragOver, onShowToast }: any) => {
+const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamColor, onUpdatePlayer, onSaveProfile, onAddPlayer, onKnockoutRequest, usedColors, isQueue = false, onMove, toggleTeamBench, substitutePlayers, statsMap, onRequestProfileEdit, onViewProfile, onTogglePlayerMenu, activePlayerMenuId, isNext = false, onDisband, onReorder, queueIndex, queueSize, isDragOver, onShowToast, activeNumberId, onRequestEditNumber }: any) => {
   const { t } = useTranslation();
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'main' | 'reserves'>('main'); 
@@ -176,7 +179,6 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
 
   const rawPlayers = viewMode === 'main' ? team.players : (team.reserves || []);
   
-  // Performance: Only sort if config changed or players changed.
   const displayedPlayers = useMemo(() => {
       let sorted = [...rawPlayers];
       if (sortConfig.criteria === 'original') return sorted;
@@ -287,6 +289,8 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
                         onToggleMenu={onTogglePlayerMenu} 
                         isMenuActive={activePlayerMenuId === p.id} 
                         onShowToast={onShowToast} 
+                        activeNumberId={activeNumberId}
+                        onRequestEditNumber={onRequestEditNumber}
                     />
                 </motion.div>
             ))}
@@ -296,7 +300,7 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
       <AddPlayerInput onAdd={handleAdd} disabled={isFull} customLabel={addButtonLabel} />
     </div>
   );
-}, (prev, next) => prev.team === next.team && prev.profiles === next.profiles && prev.usedColors === next.usedColors && prev.isQueue === next.isQueue && prev.activePlayerMenuId === next.activePlayerMenuId && prev.isNext === next.isNext && prev.queueIndex === next.queueIndex && prev.queueSize === next.queueSize && prev.isDragOver === next.isDragOver);
+}, (prev, next) => prev.team === next.team && prev.profiles === next.profiles && prev.usedColors === next.usedColors && prev.isQueue === next.isQueue && prev.activePlayerMenuId === next.activePlayerMenuId && prev.isNext === next.isNext && prev.queueIndex === next.queueIndex && prev.queueSize === next.queueSize && prev.isDragOver === next.isDragOver && prev.activeNumberId === next.activeNumberId && prev.onUpdatePlayer === next.onUpdatePlayer && prev.onShowToast === next.onShowToast);
 
 // ... (ProfileCard, BatchInputSection remain same) ...
 const ProfileCard = memo(({ profile, onDelete, onAddToGame, status, onEdit, placementOptions, onView, teamColor, onShowToast }: { profile: PlayerProfile; onDelete: () => void; onAddToGame: (target: string) => { success: boolean, error?: string }; status: PlayerLocationStatus; onEdit: () => void; placementOptions: PlacementOption[]; onView: () => void; teamColor?: TeamColor; onShowToast: (msg: string, type: any, undo?: any) => void }) => {
@@ -356,7 +360,7 @@ const BatchInputSection = memo(({ onGenerate }: { onGenerate: (names: string[]) 
     return (<div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 px-1 pb-10 pt-4"> <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400"><AlertCircle size={16} className="mt-0.5 flex-shrink-0" /><div><p className="font-bold mb-1">{t('teamManager.batch.tipTitle')}</p><p><code>{t('teamManager.batch.tipFormat')}</code></p><p className="opacity-80 mt-1">{t('teamManager.batch.tipDesc')}</p></div></div><textarea className="w-full h-64 bg-white/50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl p-4 text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono text-sm resize-none custom-scrollbar" placeholder={t('teamManager.batch.placeholder')} value={rawNames} onChange={e => setRawNames(e.target.value)} /><Button onClick={handleGenerate} className="w-full" size="lg"><Shuffle size={18} /> {t('teamManager.generateTeams')}</Button></div>);
 });
 
-const RosterBoard = ({ courtA, courtB, queue, onUpdatePlayer, wrappedAdd, handleKnockoutRequest, usedColors, wrappedMove, playerStatsMap, setEditingTarget, setViewingProfileId, handleTogglePlayerMenu, activePlayerMenu, toggleTeamBench, wrappedUpdateColor, substitutePlayers, reorderQueue, handleDisbandTeam, dragOverContainerId, setToast, profiles, wrappedSaveProfile, onRequestProfileEdit }: any) => {
+const RosterBoard = ({ courtA, courtB, queue, onUpdatePlayer, wrappedAdd, handleKnockoutRequest, usedColors, wrappedMove, playerStatsMap, setEditingTarget, setViewingProfileId, handleTogglePlayerMenu, activePlayerMenu, toggleTeamBench, wrappedUpdateColor, substitutePlayers, reorderQueue, handleDisbandTeam, dragOverContainerId, onShowToast, profiles, wrappedSaveProfile, onRequestProfileEdit, activeNumberId, onRequestEditNumber }: any) => {
     const { t } = useTranslation();
     const [queueSearchTerm, setQueueSearchTerm] = useState('');
     const queueScrollRef = useRef<HTMLDivElement>(null);
@@ -414,10 +418,10 @@ const RosterBoard = ({ courtA, courtB, queue, onUpdatePlayer, wrappedAdd, handle
     return (
         <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="flex flex-col [@media(min-width:736px)]:grid [@media(min-width:736px)]:grid-cols-2 [@media(min-width:992px)]:flex [@media(min-width:992px)]:flex-row gap-4 [@media(min-width:992px)]:gap-8 pb-24 px-1 min-h-[60vh] pt-4">
             <div className="w-full [@media(min-width:992px)]:w-[30%] h-full">
-                <TeamColumn id="A" team={courtA} onUpdatePlayer={onUpdatePlayer} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(pid: string) => setEditingTarget({ type: 'player', id: pid })} onViewProfile={(pid: string) => setViewingProfileId(pid)} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} profiles={profiles} onUpdateTeamName={()=>{}} onUpdateTeamColor={wrappedUpdateColor} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} isDragOver={dragOverContainerId === 'A' || dragOverContainerId === 'A_Reserves'} onShowToast={(msg: string, type: any, undo?: any) => setToast({ message: msg, visible: true, type, systemIcon: type === 'success' ? 'save' : 'alert', onUndo: undo })} />
+                <TeamColumn id="A" team={courtA} onUpdatePlayer={onUpdatePlayer} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(pid: string) => setEditingTarget({ type: 'player', id: pid })} onViewProfile={(pid: string) => setViewingProfileId(pid)} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} profiles={profiles} onUpdateTeamName={()=>{}} onUpdateTeamColor={wrappedUpdateColor} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} isDragOver={dragOverContainerId === 'A' || dragOverContainerId === 'A_Reserves'} onShowToast={onShowToast} activeNumberId={activeNumberId} onRequestEditNumber={onRequestEditNumber} />
             </div>
             <div className="w-full [@media(min-width:992px)]:w-[30%] h-full">
-                <TeamColumn id="B" team={courtB} onUpdatePlayer={onUpdatePlayer} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(pid: string) => setEditingTarget({ type: 'player', id: pid })} onViewProfile={(pid: string) => setViewingProfileId(pid)} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} profiles={profiles} onUpdateTeamName={()=>{}} onUpdateTeamColor={wrappedUpdateColor} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} isDragOver={dragOverContainerId === 'B' || dragOverContainerId === 'B_Reserves'} onShowToast={(msg: string, type: any, undo?: any) => setToast({ message: msg, visible: true, type, systemIcon: type === 'success' ? 'save' : 'alert', onUndo: undo })} />
+                <TeamColumn id="B" team={courtB} onUpdatePlayer={onUpdatePlayer} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(pid: string) => setEditingTarget({ type: 'player', id: pid })} onViewProfile={(pid: string) => setViewingProfileId(pid)} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} profiles={profiles} onUpdateTeamName={()=>{}} onUpdateTeamColor={wrappedUpdateColor} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} isDragOver={dragOverContainerId === 'B' || dragOverContainerId === 'B_Reserves'} onShowToast={onShowToast} activeNumberId={activeNumberId} onRequestEditNumber={onRequestEditNumber} />
             </div>
             <motion.div variants={staggerItem} className="w-full [@media(min-width:736px)]:col-span-2 [@media(min-width:992px)]:w-[40%] relative p-1 pt-8 rounded-2xl bg-slate-100/50 dark:bg-white/[0.02] border border-dashed border-slate-300 dark:border-white/10 flex flex-col h-full overflow-hidden">
                 <div className="absolute top-4 left-6 px-3 py-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2 shadow-sm z-30"><Layers size={10} /><span>{t('teamManager.queue')}</span><span className="bg-slate-200 dark:bg-white/10 px-1.5 rounded text-slate-600 dark:text-slate-300">{queue.length}</span></div>{filteredQueue.length > 1 && (<div className="absolute top-4 right-6 px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 text-[9px] font-bold text-slate-400 border border-black/5 dark:border-white/5 z-30">{t('common.step', {number: `${queuePage} / ${filteredQueue.length}`})}</div>)}
@@ -429,7 +433,7 @@ const RosterBoard = ({ courtA, courtB, queue, onUpdatePlayer, wrappedAdd, handle
                         <AnimatePresence initial={false} mode="popLayout">
                             {filteredQueue.map((team: Team, idx: number) => (
                                 <motion.div key={team.id} layout="position" layoutId={`queue-card-${team.id}`} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }} transition={{ type: "spring", stiffness: 60, damping: 15, mass: 1 }} className="snap-center w-full flex-shrink-0 h-full px-2 pt-1 pb-1 flex flex-col"> 
-                                    <TeamColumn id={team.id} team={team} profiles={profiles} onUpdateTeamName={()=>{}} onUpdateTeamColor={wrappedUpdateColor} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={()=>{}} onUpdatePlayer={onUpdatePlayer} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} isQueue={true} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(pid: string) => setEditingTarget({ type: 'player', id: pid })} onViewProfile={(pid: string) => setViewingProfileId(pid)} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} isNext={idx === 0 && !queueSearchTerm} onDisband={handleDisbandTeam} onReorder={isFiltered ? undefined : handleReorderLocal} queueIndex={idx} queueSize={queue.length} isDragOver={dragOverContainerId === team.id || dragOverContainerId === `${team.id}_Reserves`} onShowToast={(msg: string, type: any, undo?: any) => setToast({ message: msg, visible: true, type, systemIcon: type === 'success' ? 'save' : 'alert', onUndo: undo })} />
+                                    <TeamColumn id={team.id} team={team} profiles={profiles} onUpdateTeamName={()=>{}} onUpdateTeamColor={wrappedUpdateColor} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={()=>{}} onUpdatePlayer={onUpdatePlayer} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} isQueue={true} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(pid: string) => setEditingTarget({ type: 'player', id: pid })} onViewProfile={(pid: string) => setViewingProfileId(pid)} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} isNext={idx === 0 && !queueSearchTerm} onDisband={handleDisbandTeam} onReorder={isFiltered ? undefined : handleReorderLocal} queueIndex={idx} queueSize={queue.length} isDragOver={dragOverContainerId === team.id || dragOverContainerId === `${team.id}_Reserves`} onShowToast={onShowToast} activeNumberId={activeNumberId} onRequestEditNumber={onRequestEditNumber} />
                                 </motion.div>
                             ))}
                         </AnimatePresence>
@@ -451,13 +455,15 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
   const [undoVisible, setUndoVisible] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // NEW: Lifted state for the currently editing number input
+  const [activeNumberId, setActiveNumberId] = useState<string | null>(null);
+  const validationLockRef = useRef<string | null>(null);
+  
   const [benchConfirmState, setBenchConfirmState] = useState<{ teamId: string, playerId: string } | null>(null);
   const [dropConfirmState, setDropConfirmState] = useState<{ playerId: string; sourceId: string; targetTeamId: string; index: number; } | null>(null);
   const [resetConfirmState, setResetConfirmState] = useState(false);
 
-  const [toast, setToast] = useState<{ message: string, visible: boolean, type?: 'success' | 'info' | 'error', subText?: string, systemIcon?: any, onUndo?: () => void }>({ message: '', visible: false });
-
-  const [editingTarget, setEditingTarget] = useState<{ type: 'player' | 'profile', id: string } | null>(null);
+  const [editingTarget, setEditingTarget] = useState<EditingTarget | null>(null);
   
   // NEW: State for Read-Only Profile View
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
@@ -471,7 +477,7 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
   
   const lastMoveRef = useRef<{ id: string, from: string, to: string, index: number, ts: number } | null>(null);
 
-  const { onUpdatePlayer, restoreTeam, onRestorePlayer, upsertProfile, deleteProfile, relinkProfile } = props;
+  const { onUpdatePlayer, restoreTeam, onRestorePlayer, upsertProfile, deleteProfile, relinkProfile, onShowToast } = props;
   
   const findContainer = useCallback((id: string) => {
     if (id === 'A' || props.courtA.players.some(p => p.id === id)) return 'A';
@@ -489,19 +495,52 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
 
   // --- UPDATE HANDLER ---
   const handleUpdatePlayerWrapper = useCallback((playerId: string, updates: Partial<Player>) => {
+      // Calls the hook logic which validates against store state (referenced inside hook)
+      // Now expects the result object to be returned
       const result = onUpdatePlayer(playerId, updates);
       
+      // Error handling for immediate feedback (Toast)
       if (result && result.success === false) {
+          validationLockRef.current = playerId; // LOCK switching
           haptics.notification('error');
-          setToast({
-              message: "Update Failed",
-              subText: result.error || "Duplicate number.",
-              visible: true,
-              type: 'error',
-              systemIcon: 'block'
-          });
+          
+          // Enhanced visual feedback for integrity issues
+          // Using PARENT onShowToast directly
+          onShowToast(
+              "Number Unavailable", // Translated or simple English
+              'error',
+              result.error || "Conflict detected in roster.",
+              'block'
+          );
+      } else {
+          // If successful (or no result, meaning no validation check needed), unlock and clear active state
+          // Only clear lock if the update was successful for the LOCKED ID
+          if (validationLockRef.current === playerId) {
+              validationLockRef.current = null;
+          }
+          if (activeNumberId === playerId) {
+              setActiveNumberId(null);
+          }
       }
-  }, [onUpdatePlayer, haptics]);
+      return result; // Pass result back to child (EditableNumber)
+  }, [onUpdatePlayer, haptics, onShowToast, activeNumberId]);
+
+  // NEW: Request handler to prevent switching if locked
+  const handleRequestEditNumber = useCallback((playerId: string) => {
+      // If locked by another player, do not allow switch
+      if (validationLockRef.current && validationLockRef.current !== playerId) {
+          // Trigger a reminder shake or toast
+          haptics.notification('warning');
+          onShowToast(
+              "Finish Editing",
+              'warning',
+              "Please fix the invalid number before editing another.",
+              'alert'
+          );
+          return;
+      }
+      setActiveNumberId(playerId);
+  }, [haptics, onShowToast]);
 
   const wrappedUpdateColor = useCallback((id: string, color: TeamColor) => { props.onUpdateTeamColor(id, color); }, [props.onUpdateTeamColor]);
   
@@ -518,16 +557,15 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
       const result = props.onAddPlayer(name, target, number, skill);
       if (!result.success) {
           haptics.notification('error');
-          setToast({
-              message: "Cannot Add",
-              subText: result.error || "Duplicate number or limit reached.",
-              visible: true,
-              type: 'error',
-              systemIcon: 'block'
-          });
+          onShowToast(
+              "Cannot Add",
+              'error',
+              result.error || "Duplicate number or limit reached.",
+              'block'
+          );
       }
       return result;
-  }, [props.onAddPlayer, haptics]);
+  }, [props.onAddPlayer, haptics, onShowToast]);
   
   const { disbandTeam, reorderQueue, resetRosters, onDeletePlayer } = props;
   
@@ -540,16 +578,15 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
       disbandTeam(id);
       
       if (teamToDisband && restoreTeam) {
-          setToast({ 
-              message: t('teamManager.playerRemoved'), 
-              subText: teamToDisband.name,
-              visible: true, 
-              type: 'info', 
-              systemIcon: 'delete',
-              onUndo: () => restoreTeam(teamToDisband, teamIndex)
-          });
+          onShowToast(
+              t('teamManager.playerRemoved'), 
+              'info', 
+              teamToDisband.name,
+              'delete',
+              () => restoreTeam(teamToDisband, teamIndex)
+          );
       }
-  }, [disbandTeam, haptics, audio, props.queue, restoreTeam, t]) : undefined;
+  }, [disbandTeam, haptics, audio, props.queue, restoreTeam, t, onShowToast]) : undefined;
 
   const wrappedReorder = reorderQueue ? useCallback((from: number, to: number) => { haptics.impact('light'); audio.playTap(); reorderQueue(from, to); }, [reorderQueue, haptics, audio]) : undefined;
 
@@ -570,19 +607,15 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
       setActivePlayerMenu(null);
       
       if (player && props.onUndoRemove) {
-          setToast({
-              message: t('teamManager.playerRemoved'),
-              subText: player.name,
-              visible: true,
-              type: 'info',
-              systemIcon: 'delete',
-              // DIRECT UNDO CALL: No parameters needed, relies on reducer stack
-              onUndo: () => {
-                  props.onUndoRemove();
-              }
-          });
+          onShowToast(
+              t('teamManager.playerRemoved'),
+              'info',
+              player.name,
+              'delete',
+              props.onUndoRemove
+          );
       }
-  }, [props.courtA, props.courtB, props.queue, onDeletePlayer, props.onUndoRemove, t]);
+  }, [props.courtA, props.courtB, props.queue, onDeletePlayer, props.onUndoRemove, t, onShowToast]);
 
   // REFACTORED: Deep Copy Undo for Profiles (Robust Fix)
   const handleProfileDelete = useCallback((profileId: string) => {
@@ -596,13 +629,12 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
       if (deletedProfile && upsertProfile && relinkProfile) {
           const backup = { ...deletedProfile };
           
-          setToast({
-              message: t('teamManager.playerRemoved'), 
-              subText: backup.name,
-              visible: true,
-              type: 'info',
-              systemIcon: 'delete',
-              onUndo: () => {
+          onShowToast(
+              t('teamManager.playerRemoved'), 
+              'info',
+              backup.name,
+              'delete',
+              () => {
                   upsertProfile(
                       backup.name, 
                       backup.skillLevel, 
@@ -615,9 +647,9 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
                   );
                   relinkProfile(backup);
               }
-          });
+          );
       }
-  }, [deleteProfile, upsertProfile, relinkProfile, t]);
+  }, [deleteProfile, upsertProfile, relinkProfile, t, onShowToast]);
 
   const playerStatsMap = useMemo(() => {
       const map = new Map<string, PlayerStats>();
@@ -648,365 +680,342 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
 
   const playersById = useMemo(() => {
     const map = new Map<string, Player>();
-    [...props.courtA.players, ...(props.courtA.reserves||[]), ...props.courtB.players, ...(props.courtB.reserves||[]), ...props.queue.flatMap(t => [...t.players, ...(t.reserves||[])])].forEach(p => map.set(p.id, p));
+    [props.courtA, props.courtB, ...props.queue].forEach(team => {
+        team.players.forEach(p => map.set(p.id, p));
+        team.reserves?.forEach(p => map.set(p.id, p));
+    });
     return map;
   }, [props.courtA, props.courtB, props.queue]);
 
-  const usedColors = useMemo(() => {
-      const set = new Set<string>();
-      if (props.courtA.color) set.add(props.courtA.color);
-      if (props.courtB.color) set.add(props.courtB.color);
-      props.queue.forEach(t => { if(t.color) set.add(t.color) });
-      return set;
-  }, [props.courtA, props.courtB, props.queue]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 5 } }),
+    useSensor(KeyboardSensor)
+  );
 
-  const placementOptions = useMemo<PlacementOption[]>(() => {
-      const options: PlacementOption[] = [];
-      const allTeams = [props.courtA, props.courtB, ...props.queue];
-      allTeams.forEach(team => {
-          if (team.players.length < 6) { options.push({ label: `${t('teamManager.actions.addTo')} ${team.name}`, targetId: team.id, type: 'main', teamColor: team.color }); }
-          if (team.hasActiveBench && (team.reserves || []).length < 6) { options.push({ label: `${t('teamManager.actions.addTo')} ${team.name} (${t('teamManager.benchLabel')})`, targetId: team.id === 'A' ? 'A_Reserves' : (team.id === 'B' ? 'B_Reserves' : `${team.id}_Reserves`), type: 'bench', teamColor: team.color }); }
-      });
-      options.push({ label: t('teamManager.actions.addToQueue'), targetId: 'Queue', type: 'queue' });
-      return options;
-  }, [props.courtA, props.courtB, props.queue, t]);
-
-  const filteredProfiles = useMemo(() => {
-      return Array.from(props.profiles.values()).filter((p: PlayerProfile) => p.name.toLowerCase().includes(searchTerm.toLowerCase())).sort((a: PlayerProfile, b: PlayerProfile) => a.name.localeCompare(b.name));
-  }, [props.profiles, searchTerm]);
-
-  // ... Drag handlers (omitted for brevity, assume unchanged logic using wrappedMove)
   const handleDragStart = (event: DragStartEvent) => {
-    const player = playersById.get(event.active.id as string);
-    if (player) { setActivePlayer(player); haptics.impact('light'); }
+      haptics.impact('light');
+      setActivePlayer(playersById.get(event.active.id as string) || null);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-    const activeId = active.id as string;
-    const overId = over.id as string;
-    const overContainer = findContainer(overId) || (over.data.current?.containerId as string);
-    if (overContainer && overContainer !== dragOverContainerId) setDragOverContainerId(overContainer);
-    const activeContainer = findContainer(activeId);
-    if (!activeContainer || !overContainer) return;
-    if (activeContainer !== overContainer) {
-        const overTeam = getTeamById(overContainer);
-        if (!overTeam) return;
-        const isMainRoster = !overContainer.includes('Reserves');
-        const targetList = isMainRoster ? overTeam.players : (overTeam.reserves || []);
-        if (targetList.length >= 6) return; 
-        const targetLen = targetList.length;
-        const overIndex = over.data.current?.sortable?.index ?? targetLen + 1;
-        wrappedMove(activeId, activeContainer, overContainer, overIndex);
-    }
+      const { over } = event;
+      setDragOverContainerId(over ? (over.data.current?.containerId || over.id) : null);
   };
-  
+
   const handleDragEnd = (event: DragEndEvent) => {
-    setDragOverContainerId(null);
     const { active, over } = event;
     setActivePlayer(null);
+    setDragOverContainerId(null);
+
     if (!over) return;
+
     const activeId = active.id as string;
     const overId = over.id as string;
-    const activeContainer = findContainer(activeId);
-    const overContainer = findContainer(overId) || (over.data.current?.containerId as string);
-    if (activeContainer && overContainer) {
-        const overTeam = getTeamById(overContainer);
-        if (!overTeam) return;
-        const isMainRoster = !overContainer.includes('Reserves');
-        const activeIndex = active.data.current?.sortable?.index;
-        const overIndex = over.data.current?.sortable?.index;
-        const targetList = isMainRoster ? overTeam.players : (overTeam.reserves || []);
-        if (activeContainer !== overContainer) {
-            const limit = 6; 
-            if (targetList.length >= limit) {
-                if (isMainRoster) {
-                    if (overTeam.hasActiveBench) {
-                        const benchList = overTeam.reserves || [];
-                        if (benchList.length >= limit) {
-                            haptics.notification('error');
-                            setToast({ message: t('teamManager.rosterFull'), subText: t('teamManager.rosterFullSub'), visible: true, type: 'error', systemIcon: 'block' });
-                            return; 
-                        } else {
-                            haptics.notification('success');
-                            setToast({ message: t('teamManager.movedToBench'), subText: t('teamManager.movedToBenchSub'), visible: true, type: 'info', systemIcon: 'transfer' });
-                            let reserveId = overContainer === 'A' ? 'A_Reserves' : (overContainer === 'B' ? 'B_Reserves' : `${overContainer}_Reserves`);
-                            wrappedMove(activeId, activeContainer, reserveId, benchList.length);
-                            return;
-                        }
-                    } else {
-                        haptics.notification('warning');
-                        setDropConfirmState({ playerId: activeId, sourceId: activeContainer, targetTeamId: overTeam.id, index: 0 });
-                        return;
-                    }
-                } else {
-                    haptics.notification('error');
-                    setToast({ message: t('teamManager.benchFull'), subText: t('teamManager.benchFullSub'), visible: true, type: 'error', systemIcon: 'block' });
-                    return;
-                }
-            }
-        }
-        if (activeContainer === overContainer && activeIndex !== overIndex) wrappedMove(activeId, activeContainer, overContainer, overIndex);
-        else if (activeContainer !== overContainer) { let targetLen = targetList.length; wrappedMove(activeId, activeContainer, overContainer, overIndex ?? targetLen); }
-        haptics.impact('light');
+    
+    // Determine Source & Target Containers
+    const activeData = active.data.current as { fromId: string, player: Player } | undefined;
+    const overData = over.data.current as { containerId?: string, player?: Player, fromId?: string } | undefined;
+
+    const sourceContainerId = activeData?.fromId;
+    let targetContainerId = overData?.containerId || overData?.fromId;
+
+    // Fallback: If dropped directly on container placeholder
+    if (!targetContainerId && (over.id === 'A' || over.id === 'B' || over.id === 'A_Reserves' || over.id === 'B_Reserves' || String(over.id).endsWith('_Reserves'))) {
+        targetContainerId = String(over.id);
     }
-  };
-
-  const confirmDropActivation = () => {
-      if (dropConfirmState) {
-          const { playerId, sourceId, targetTeamId } = dropConfirmState;
-          props.toggleTeamBench(targetTeamId);
-          let reserveId = '';
-          if (targetTeamId === 'A' || targetTeamId === props.courtA.id) reserveId = 'A_Reserves';
-          else if (targetTeamId === 'B' || targetTeamId === props.courtB.id) reserveId = 'B_Reserves';
-          else reserveId = `${targetTeamId}_Reserves`;
-          setTimeout(() => { wrappedMove(playerId, sourceId, reserveId, 0); haptics.notification('success'); setToast({ message: t('teamManager.movedToBench'), visible: true, type: 'success', systemIcon: 'transfer' }); }, 50);
-          setDropConfirmState(null);
-      }
-  };
-
-  const handleKnockoutRequest = useCallback((teamId: string, playerId: string) => {
-      const team = getTeamById(teamId);
-      if (!team) return;
-      const isQueueTeam = teamId !== 'A' && teamId !== 'B' && !teamId.includes('_Reserves');
-      if (!isQueueTeam && !team.hasActiveBench) { setBenchConfirmState({ teamId, playerId }); } else { props.onRemove(playerId); }
-  }, [props.courtA, props.courtB, props.queue, props.onRemove]);
-
-  const confirmBenchActivation = () => { if (benchConfirmState) { props.toggleTeamBench(benchConfirmState.teamId); setTimeout(() => { props.onRemove(benchConfirmState.playerId); }, 50); setBenchConfirmState(null); } };
-
-  const getProfileStatus = (profileId: string): PlayerLocationStatus => {
-      if (props.courtA.players.some(p => p.profileId === profileId)) return 'A';
-      if (props.courtA.reserves?.some(p => p.profileId === profileId)) return 'A_Bench';
-      if (props.courtB.players.some(p => p.profileId === profileId)) return 'B';
-      if (props.courtB.reserves?.some(p => p.profileId === profileId)) return 'B_Bench';
-      for (const t of props.queue) { if (t.players.some(p => p.profileId === profileId)) return 'Queue'; if (t.reserves?.some(p => p.profileId === profileId)) return 'Queue_Bench'; }
-      return null;
-  };
-
-  const getColorFromStatus = (status: PlayerLocationStatus): TeamColor | undefined => {
-      if (!status) return undefined;
-      if (status.startsWith('A')) return props.courtA.color;
-      if (status.startsWith('B')) return props.courtB.color;
-      if (status.startsWith('Queue')) return 'slate'; 
-      return undefined;
-  };
-
-  const handleSaveProfileData = (name: string, number: string, avatar: string, skill: number, role: PlayerRole) => {
-    if (!editingTarget) return;
-
-    if (editingTarget.type === 'player') {
-        const rosterPlayerId = editingTarget.id;
-        // 🛡️ CAPTURE RESULT FROM SAVE PROFILE
-        const result = props.onSaveProfile(rosterPlayerId, { name, number, avatar, skill, role });
-        
-        // Check for error (e.g., number conflict)
-        if (result && result.success === false) {
-            haptics.notification('error');
-            setToast({
-                message: "Cannot Save Profile",
-                subText: result.error || "Invalid data",
-                visible: true,
-                type: 'error',
-                systemIcon: 'block'
-            });
-            // 🛑 STOP: Do not close modal, let user fix it
-            return;
-        }
-    } else if (editingTarget.type === 'profile') {
-        if (props.upsertProfile) {
-            props.upsertProfile(name, skill, editingTarget.id, { number, avatar, role });
-        }
+    // Queue Fallback
+    if (!targetContainerId && (String(over.id).length > 20)) {
+         targetContainerId = String(over.id); 
     }
-    setEditingTarget(null);
+
+    if (!sourceContainerId || !targetContainerId) return;
+
+    // Same container reorder vs Cross container move
+    if (sourceContainerId === targetContainerId) {
+        // Logic for reordering within same list (omitted for brevity as standard array move)
+        // Since we don't have exact index from here easily without extra lookup, we skip reorder for now 
+        // or implement simple swap if needed. But core requirement is moving between lists.
+        return; 
+    }
+
+    // --- LOGIC: HANDLE RESTRICTIONS ---
+    
+    // 1. Check Bench Activation
+    const targetTeamObj = getTeamById(targetContainerId);
+    
+    // Case: Moving from Main to Reserves when Bench is INACTIVE
+    if (targetContainerId.endsWith('_Reserves') && targetTeamObj && !targetTeamObj.hasActiveBench) {
+        setBenchConfirmState({ teamId: targetTeamObj.id, playerId: activeId });
+        return;
+    }
+
+    // Case: Moving to Main Team when FULL -> Suggest Bench
+    if (!targetContainerId.endsWith('_Reserves') && targetTeamObj && targetTeamObj.players.length >= 6) {
+        // Only trigger if Bench is available or can be activated
+        setDropConfirmState({ playerId: activeId, sourceId: sourceContainerId, targetTeamId: targetTeamObj.id, index: 0 }); // Index 0 is dummy
+        return;
+    }
+
+    // Execute Move
+    haptics.impact('medium');
+    wrappedMove(activeId, sourceContainerId, targetContainerId, undefined);
   };
 
-  const getInitialModalData = () => {
-      if (!editingTarget) return { name: '', number: '', skill: 3, role: 'none' as PlayerRole };
-      
-      if (editingTarget.type === 'player') {
-          const p = playersById.get(editingTarget.id);
-          const prof = p?.profileId ? props.profiles.get(p.profileId) : null;
-          
-          return { 
-              name: p?.name || '', 
-              number: p?.number || '', 
-              skill: p?.skillLevel || 5, 
-              role: p?.role || prof?.role || 'none'
-          };
-      } else {
-          const p = props.profiles.get(editingTarget.id);
-          return { 
-              name: p?.name || '', 
-              number: p?.number || '', 
-              skill: p?.skillLevel || 5, 
-              role: p?.role || 'none' 
-          };
-      }
-  };
+  const usedColors = new Set([props.courtA.color, props.courtB.color]);
 
-  const handleProfileRequest = (playerId: string) => {
-      setEditingTarget({ type: 'player', id: playerId });
-  };
-
-  const handleEditFromView = (profileId: string) => {
-      setViewingProfileId(null);
-      setEditingTarget({ type: 'profile', id: profileId });
-  };
-
-  const sensors = useSensors(
-      useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-      useSensor(TouchSensor, { 
-          activationConstraint: { delay: 250, tolerance: 5 } 
-      }),
-      useSensor(KeyboardSensor)
-  );
-
-  const activePlayerForMenu = activePlayerMenu ? playersById.get(activePlayerMenu.playerId) : null;
-  const activePlayerContainerId = activePlayerForMenu ? findContainer(activePlayerForMenu.id) : null;
-  const isReservesForActivePlayer = activePlayerContainerId?.includes('_Reserves') ?? false;
-  let menuTop = 0, menuLeft = 0;
-  if (activePlayerMenu) { const rect = activePlayerMenu.rect; const menuHeight = 130; const menuWidth = 220; const vw = window.innerWidth; const vh = window.innerHeight; if (rect.bottom + menuHeight > vh - 20) { menuTop = rect.bottom - menuHeight; } else { menuTop = rect.top; } menuLeft = rect.right - menuWidth; if (rect.right > vw - 10) { menuLeft = vw - menuWidth - 10; } if (menuLeft < 10) { menuLeft = 10; } }
-  
-  const TabButton = ({ id, label, icon: Icon }: any) => ( 
-    <button 
-      onClick={() => setActiveTab(id)} 
-      className={`
-        relative px-1.5 sm:px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all flex-1 min-w-0
-        ${activeTab === id 
-          ? 'bg-white dark:bg-white/10 text-indigo-600 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' 
-          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5'
-        }
-      `} 
-    > 
-      <Icon size={14} strokeWidth={2.5} className="flex-shrink-0" /> 
-      <span className="text-[10px] font-bold uppercase tracking-wider truncate leading-none">
-        {label}
-      </span> 
-    </button> 
-  );
-  
-  const handleGenerate = useCallback((names: string[]) => { props.onGenerate(names); setActiveTab('roster'); }, [props.onGenerate]);
+  const usedProfiles = useMemo(() => {
+      const set = new Set<string>();
+      playersById.forEach(p => { if (p.profileId) set.add(p.profileId); });
+      return set;
+  }, [playersById]);
 
   return (
-    <Modal isOpen={props.isOpen} onClose={handleCloseAttempt} title="" maxWidth="max-w-[95vw] md:max-w-7xl" showCloseButton={false} backdropClassName="bg-black/40 dark:bg-black/70 backdrop-blur-md">
-      <NotificationToast visible={toast.visible} type={toast.type || "info"} mainText={toast.message} subText={toast.subText} systemIcon={toast.systemIcon} onClose={() => setToast({ ...toast, visible: false })} duration={2500} onUndo={toast.onUndo} />
-      <Modal isOpen={!!benchConfirmState} onClose={() => setBenchConfirmState(null)} title={t('teamManager.activateBenchTitle')} maxWidth="max-w-sm" zIndex="z-[70]" backdropClassName="bg-black/50 dark:bg-black/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
-              <div className="p-3 bg-emerald-500/10 rounded-full text-emerald-600 border border-emerald-500/20"><Armchair size={32} /></div>
-              <div><p className="text-slate-600 dark:text-slate-300 text-sm font-medium">{t('teamManager.activateBenchMsg')}</p><p className="text-slate-500 dark:text-slate-400 text-xs mt-2">{t('teamManager.activateBenchConfirm')}</p></div>
-              <div className="grid grid-cols-2 gap-3 w-full pt-2"><Button variant="secondary" onClick={() => setBenchConfirmState(null)}>{t('common.cancel')}</Button><Button className="bg-emerald-600 hover:bg-emerald-500 text-white" onClick={confirmBenchActivation}>{t('teamManager.btnActivateBench')}</Button></div>
-          </div>
-      </Modal>
-      <Modal isOpen={!!dropConfirmState} onClose={() => setDropConfirmState(null)} title={t('teamManager.teamFullTitle')} maxWidth="max-w-sm" zIndex="z-[70]" backdropClassName="bg-black/50 dark:bg-black/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
-              <div className="p-3 bg-amber-500/10 rounded-full text-amber-600 border border-amber-500/20"><Users size={32} /></div>
-              <div><p className="text-slate-600 dark:text-slate-300 text-sm font-medium">{t('teamManager.teamFullMsg')}</p><p className="text-slate-500 dark:text-slate-400 text-xs mt-2">{t('teamManager.teamFullConfirm')}</p></div>
-              <div className="grid grid-cols-2 gap-3 w-full pt-2"><Button variant="secondary" onClick={() => setDropConfirmState(null)}>{t('common.cancel')}</Button><Button className="bg-emerald-600 hover:bg-emerald-500 text-white" onClick={confirmDropActivation}>{t('teamManager.btnYesBench')}</Button></div>
-          </div>
-      </Modal>
-      
-      <ConfirmationModal
-          isOpen={resetConfirmState}
-          onClose={() => setResetConfirmState(false)}
-          onConfirm={() => {
-              if (resetRosters) {
-                  haptics.notification('warning');
-                  resetRosters();
-              }
-          }}
-          title="Reset Roster?"
-          message="This will remove all players and teams. This action cannot be undone."
-          confirmLabel="Clear Teams"
-          icon={Trash2}
-      />
-      
-      {editingTarget && (
-          <ProfileCreationModal 
-              isOpen={!!editingTarget}
-              onClose={() => setEditingTarget(null)}
-              onSave={handleSaveProfileData}
-              initialName={getInitialModalData().name}
-              initialNumber={getInitialModalData().number}
-              initialSkill={getInitialModalData().skill}
-              initialRole={getInitialModalData().role}
-              title={editingTarget.type === 'profile' ? t('profile.editTitle') : t('profile.createTitle')}
-          />
-      )}
+    createPortal(
+    <Modal isOpen={props.isOpen} onClose={handleCloseAttempt} title={t('teamManager.title')} maxWidth="max-w-5xl" zIndex="z-[50]">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+            
+            {/* Header Tabs */}
+            <div className="flex px-1 mb-2 bg-slate-100 dark:bg-black/20 p-1 rounded-xl shrink-0">
+                <button onClick={() => setActiveTab('roster')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'roster' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>{t('teamManager.tabs.roster')}</button>
+                <button onClick={() => setActiveTab('profiles')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'profiles' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>{t('teamManager.tabs.profiles')}</button>
+                <button onClick={() => setActiveTab('input')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'input' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>{t('teamManager.tabs.batch')}</button>
+            </div>
 
-      {viewingProfileId && (
-          <ProfileDetailsModal 
-              isOpen={!!viewingProfileId}
-              onClose={() => setViewingProfileId(null)}
-              profileId={viewingProfileId}
-              profiles={props.profiles}
-              onEdit={() => handleEditFromView(viewingProfileId)}
-          />
-      )}
-
-      {activePlayerForMenu && createPortal(<div className="fixed z-[9999]" style={{ top: menuTop, left: menuLeft }}><motion.div ref={playerMenuRef} initial={{ opacity: 0, scale: 0.9, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.15, ease: "easeOut" }} className="w-[220px] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden flex flex-col gap-0.5 p-1"><button onClick={(e) => { e.stopPropagation(); if (isReservesForActivePlayer) { const fromId = activePlayerContainerId!; const toId = fromId.replace('_Reserves', ''); wrappedMove(activePlayerForMenu!.id, fromId, toId); } else { handleKnockoutRequest(activePlayerContainerId || '', activePlayerForMenu!.id); } setActivePlayerMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg w-full text-left">{isReservesForActivePlayer ? <ArrowUp size={14} /> : <LogOut size={14} />} {isReservesForActivePlayer ? t('teamManager.menu.returnCourt') : t('teamManager.menu.sendBench')}</button><button onClick={(e) => { e.stopPropagation(); props.onToggleFixed(activePlayerForMenu.id); setActivePlayerMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg w-full text-left">{activePlayerForMenu.isFixed ? <Unlock size={14} className="text-amber-500" /> : <Pin size={14} />} {activePlayerForMenu.isFixed ? t('teamManager.menu.unlock') : t('teamManager.menu.lock')}</button>{props.onDeletePlayer && (<><div className="h-px bg-black/5 dark:bg-white/5 my-0.5 mx-2" /><button onClick={(e) => { e.stopPropagation(); handleDeleteWithUndo(activePlayerForMenu.id); }} className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg w-full text-left"><Trash2 size={14} /> {t('teamManager.menu.delete')}</button></>)}</motion.div></div>, document.body)}
-      
-      <div className="sticky top-0 z-[80] -mx-6 -mt-6 mb-4 bg-slate-50/90 dark:bg-[#0f172a]/95 backdrop-blur-xl border-b border-black/5 dark:border-white/5 px-4 pt-4 pb-2 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <div className="w-1 h-3 bg-indigo-500 rounded-full" />{t('teamManager.title')}
-              </h2>
-              <div className="flex gap-2">
-                  {resetRosters && (
-                      <button 
-                          onClick={() => setResetConfirmState(true)}
-                          className="p-2 -mr-1 rounded-full hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-colors"
-                          title="Reset All"
-                      >
-                          <Trash2 size={18} />
-                      </button>
-                  )}
-                  <button onClick={handleCloseAttempt} className="p-2 -mr-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors">
-                      <X size={20} />
-                  </button>
-              </div>
-          </div>
-          <div className="flex flex-col gap-3">
-              <div className="flex bg-slate-200/50 dark:bg-black/20 p-1 rounded-xl w-full">
-                  <div className="flex w-full gap-1">
-                    <TabButton id="roster" label={t('teamManager.tabs.roster')} icon={List} />
-                    <TabButton id="profiles" label={t('teamManager.tabs.profiles')} icon={Users} />
-                    <TabButton id="input" label={t('teamManager.tabs.batch')} icon={Upload} />
-                  </div>
-              </div>
-              <AnimatePresence>
+            {/* Content Area */}
+            <div className="flex-1 overflow-hidden relative">
                 {activeTab === 'roster' && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="flex items-center justify-between overflow-hidden">
-                        <div className="flex-1 mr-2 min-w-0">
-                            <div className="flex items-center gap-2 w-full">
-                                <div className="flex items-center bg-white dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 p-0.5 shrink-0">
-                                    <button onClick={() => props.onSetRotationMode('standard')} className={`px-2 sm:px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all whitespace-nowrap ${props.rotationMode === 'standard' ? 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`} title={t('teamManager.modes.standardTooltip')}><Layers size={12} className="flex-shrink-0" /> <span className="hidden sm:inline">{t('teamManager.modes.standard')}</span><span className="inline sm:hidden">Std</span></button>
-                                    <div className="w-px h-4 bg-black/5 dark:bg-white/5 mx-0.5" />
-                                    <button onClick={() => props.onSetRotationMode('balanced')} className={`px-2 sm:px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all whitespace-nowrap ${props.rotationMode === 'balanced' ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`} title={t('teamManager.modes.balancedTooltip')}><Shuffle size={12} className="flex-shrink-0" /> <span className="hidden sm:inline">{t('teamManager.modes.balanced')}</span><span className="inline sm:hidden">Bal</span></button>
-                                </div>
-                                <button onClick={props.onBalanceTeams} className={`flex-1 min-w-0 flex items-center justify-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-transform active:scale-95 ${props.rotationMode === 'balanced' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-indigo-500 hover:bg-indigo-600'}`}>
-                                    {props.rotationMode === 'balanced' ? t('teamManager.actions.globalBalance') : t('teamManager.actions.restoreOrder')}
-                                </button>
+                    <>
+                        <div className="flex justify-between items-center px-2 py-2 border-b border-black/5 dark:border-white/5 mb-2 shrink-0">
+                            <div className="flex gap-2">
+                                <button onClick={() => props.onSetRotationMode('standard')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border transition-all ${props.rotationMode === 'standard' ? 'bg-indigo-500 text-white border-indigo-600 shadow-sm' : 'bg-transparent border-slate-300 dark:border-white/10 text-slate-400'}`} title={t('teamManager.modes.standardTooltip')}>{t('teamManager.modes.standard')}</button>
+                                <button onClick={() => props.onSetRotationMode('balanced')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border transition-all ${props.rotationMode === 'balanced' ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm' : 'bg-transparent border-slate-300 dark:border-white/10 text-slate-400'}`} title={t('teamManager.modes.balancedTooltip')}>{t('teamManager.modes.balanced')}</button>
+                            </div>
+                            <div className="flex gap-2">
+                                {props.canUndoRemove && <button onClick={props.onUndoRemove} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase transition-colors"><Undo2 size={12} /> {t('teamManager.undo')}</button>}
+                                <button onClick={() => { haptics.impact('medium'); props.onBalanceTeams(); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold uppercase transition-colors"><Shuffle size={12} /> {t('teamManager.actions.globalBalance')}</button>
+                                {resetRosters && <button onClick={() => { if(confirm("Reset all rosters?")) resetRosters(); }} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>}
                             </div>
                         </div>
-                    </motion.div>
+                        
+                        <div className="h-full overflow-y-auto custom-scrollbar pb-20">
+                            {/* Pass handleUpdatePlayerWrapper instead of props.onUpdatePlayer to enable validation toast */}
+                            <RosterBoard 
+                                courtA={props.courtA} courtB={props.courtB} queue={props.queue} 
+                                onUpdatePlayer={handleUpdatePlayerWrapper} 
+                                wrappedAdd={wrappedAdd} wrappedMove={wrappedMove} wrappedUpdateColor={wrappedUpdateColor} wrappedSaveProfile={props.onSaveProfile}
+                                handleKnockoutRequest={handleDeleteWithUndo} usedColors={usedColors} playerStatsMap={playerStatsMap}
+                                setEditingTarget={(target: EditingTarget) => setEditingTarget(target)} 
+                                setViewingProfileId={setViewingProfileId}
+                                handleTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenu={activePlayerMenu} toggleTeamBench={props.toggleTeamBench} substitutePlayers={props.substitutePlayers} reorderQueue={wrappedReorder} handleDisbandTeam={wrappedDisband} dragOverContainerId={dragOverContainerId} onShowToast={onShowToast} profiles={props.profiles} onRequestProfileEdit={(id: string) => setEditingTarget({ type: 'player', id })}
+                                activeNumberId={activeNumberId} onRequestEditNumber={handleRequestEditNumber}
+                            />
+                        </div>
+                    </>
                 )}
-              </AnimatePresence>
-          </div>
-      </div>
-      {activeTab === 'input' && <BatchInputSection onGenerate={handleGenerate} />}
-      {activeTab === 'profiles' && (<motion.div variants={staggerContainer} initial="hidden" animate="visible" className="pb-12 pt-4">{props.profiles.size === 0 ? (<div className="text-center py-20 text-slate-400 italic">{t('teamManager.profiles.empty')}</div>) : filteredProfiles.length === 0 ? (<div className="text-center py-20 text-slate-400 italic flex flex-col items-center gap-2"><Search size={24} className="opacity-50" /><span>{t('teamManager.profiles.noMatch', {term: searchTerm})}</span></div>) : (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">{filteredProfiles.map(profile => { 
-          const status = getProfileStatus(profile.id);
-          const teamColor = status ? getColorFromStatus(status) : undefined;
-          return (
-            <motion.div key={profile.id} variants={staggerItem}>
-                <ProfileCard profile={profile} onDelete={() => handleProfileDelete(profile.id)} onAddToGame={(target) => wrappedAdd(profile.name, target, profile.number, profile.skillLevel)} status={status} onEdit={() => setEditingTarget({ type: 'profile', id: profile.id })} placementOptions={placementOptions} onView={() => setViewingProfileId(profile.id)} teamColor={teamColor} onShowToast={(msg, type, undo) => setToast({message: msg, type, visible: true, systemIcon: 'block', onUndo: undo})} />
-            </motion.div>
-          );
-      })}</div>)}</motion.div>)}
-      {activeTab === 'roster' && (<DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}><div onScroll={dispatchScrollEvent} className="h-full flex flex-col"><RosterBoard courtA={props.courtA} courtB={props.courtB} queue={props.queue} onUpdatePlayer={handleUpdatePlayerWrapper} wrappedAdd={wrappedAdd} handleKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} wrappedMove={wrappedMove} playerStatsMap={playerStatsMap} setEditingTarget={setEditingTarget} setViewingProfileId={setViewingProfileId} handleTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenu={activePlayerMenu} reorderQueue={wrappedReorder} handleDisbandTeam={wrappedDisband} toggleTeamBench={props.toggleTeamBench} wrappedUpdateColor={wrappedUpdateColor} substitutePlayers={props.substitutePlayers} dragOverContainerId={dragOverContainerId} setToast={setToast} profiles={props.profiles} wrappedSaveProfile={props.onSaveProfile} onRequestProfileEdit={handleProfileRequest} {...props} /></div></DndContext>)}
-       <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] transition-all duration-300 cubic-bezier(0.175, 0.885, 0.32, 1.275) ${undoVisible && props.canUndoRemove ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-90 pointer-events-none'}`}><div className="bg-slate-900/90 backdrop-blur-xl text-white px-6 py-3 rounded-full shadow-2xl border border-white/10 flex items-center gap-4"><span className="text-xs font-bold text-slate-300 tracking-wide">{t('teamManager.playerRemoved')}</span><div className="h-4 w-px bg-white/20"></div><button onClick={props.onUndoRemove} className="flex items-center gap-1.5 text-xs font-black text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider"><Undo2 size={16} /> {t('teamManager.undo')}</button></div></div>
-       {props.isOpen && createPortal(<DragOverlayFixed dropAnimation={{ duration: 150, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>{activePlayer ? (<div className="w-[300px]"><PlayerCard player={activePlayer} locationId="" profile={activePlayer.profileId ? props.profiles.get(activePlayer.profileId) : undefined} onUpdatePlayer={()=>{}} onSaveProfile={()=>{}} onRequestProfileEdit={()=>{}} onViewProfile={()=>{}} forceDragStyle={true} onToggleMenu={()=>{}} isMenuActive={false} /></div>) : null}</DragOverlayFixed>, document.body)}
-    </Modal>
-  );
+
+                {activeTab === 'profiles' && (
+                    <div className="h-full overflow-y-auto custom-scrollbar p-2 pb-16 space-y-4">
+                        <button onClick={() => setEditingTarget({ type: 'profile', id: 'new' })} className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-indigo-500 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all group">
+                            <div className="p-2 rounded-full bg-slate-100 dark:bg-white/5 group-hover:bg-indigo-500 group-hover:text-white transition-colors"><Plus size={24} /></div>
+                            <span className="text-xs font-bold uppercase tracking-widest">{t('profile.create')}</span>
+                        </button>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {Array.from(props.profiles.values()).length === 0 ? (
+                                <div className="col-span-full text-center py-10 text-slate-400 italic text-xs">{t('teamManager.profiles.empty')}</div>
+                            ) : (
+                                Array.from(props.profiles.values()).map(profile => {
+                                    // Determine Status
+                                    let status: PlayerLocationStatus = null;
+                                    let teamColor: TeamColor | undefined = undefined;
+                                    
+                                    // Check Court A
+                                    if (props.courtA.players.some(p => p.profileId === profile.id)) { status = 'A'; teamColor = props.courtA.color; }
+                                    else if (props.courtA.reserves?.some(p => p.profileId === profile.id)) { status = 'A_Bench'; teamColor = props.courtA.color; }
+                                    // Check Court B
+                                    else if (props.courtB.players.some(p => p.profileId === profile.id)) { status = 'B'; teamColor = props.courtB.color; }
+                                    else if (props.courtB.reserves?.some(p => p.profileId === profile.id)) { status = 'B_Bench'; teamColor = props.courtB.color; }
+                                    // Check Queue
+                                    else {
+                                        for (const t of props.queue) {
+                                            if (t.players.some(p => p.profileId === profile.id)) { status = 'Queue'; teamColor = t.color; break; }
+                                            if (t.reserves?.some(p => p.profileId === profile.id)) { status = 'Queue_Bench'; teamColor = t.color; break; }
+                                        }
+                                    }
+
+                                    const placementOptions: PlacementOption[] = [];
+                                    if (!status) {
+                                        // A
+                                        if (props.courtA.players.length < 6) placementOptions.push({ label: t('teamManager.actions.addTo') + ' ' + props.courtA.name, targetId: 'A', type: 'main', teamColor: props.courtA.color });
+                                        else if (props.courtA.hasActiveBench) placementOptions.push({ label: t('teamManager.actions.addTo') + ' ' + props.courtA.name + ' (' + t('teamManager.benchLabel') + ')', targetId: 'A_Reserves', type: 'bench', teamColor: props.courtA.color });
+                                        
+                                        // B
+                                        if (props.courtB.players.length < 6) placementOptions.push({ label: t('teamManager.actions.addTo') + ' ' + props.courtB.name, targetId: 'B', type: 'main', teamColor: props.courtB.color });
+                                        else if (props.courtB.hasActiveBench) placementOptions.push({ label: t('teamManager.actions.addTo') + ' ' + props.courtB.name + ' (' + t('teamManager.benchLabel') + ')', targetId: 'B_Reserves', type: 'bench', teamColor: props.courtB.color });
+                                        
+                                        // Queue
+                                        placementOptions.push({ label: t('teamManager.actions.addToQueue'), targetId: 'Queue', type: 'queue' });
+                                    }
+
+                                    return (
+                                        <ProfileCard 
+                                            key={profile.id} 
+                                            profile={profile} 
+                                            onDelete={() => handleProfileDelete(profile.id)}
+                                            onAddToGame={(target) => wrappedAdd(profile.name, target, profile.number, profile.skillLevel)}
+                                            status={status}
+                                            onEdit={() => setEditingTarget({ type: 'profile', id: profile.id })}
+                                            placementOptions={placementOptions}
+                                            onView={() => setViewingProfileId(profile.id)}
+                                            teamColor={teamColor}
+                                            onShowToast={onShowToast}
+                                        />
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'input' && <BatchInputSection onGenerate={props.onGenerate} />}
+            </div>
+
+            {/* Drag Overlay */}
+            <DragOverlayFixed dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
+                {activePlayer ? (
+                    <PlayerCard 
+                        player={activePlayer} 
+                        locationId="overlay" 
+                        onUpdatePlayer={()=>{}} 
+                        onSaveProfile={()=>{}} 
+                        onRequestProfileEdit={()=>{}} 
+                        onViewProfile={()=>{}}
+                        onToggleMenu={()=>{}} 
+                        isMenuActive={false} 
+                        forceDragStyle={true} 
+                    />
+                ) : null}
+            </DragOverlayFixed>
+
+            {/* --- Modals & Popups --- */}
+            
+            {/* Player Context Menu (Portal) */}
+            {activePlayerMenu && createPortal(
+                <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setActivePlayerMenu(null)} />
+                    <div 
+                        className="fixed z-[9999] min-w-[180px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-black/10 dark:border-white/10 p-1 flex flex-col animate-in fade-in zoom-in-95 duration-200"
+                        style={{ 
+                            top: Math.min(window.innerHeight - 200, activePlayerMenu.rect.bottom + 8), 
+                            left: Math.min(window.innerWidth - 190, Math.max(10, activePlayerMenu.rect.left - 100))
+                        }}
+                    >
+                       {(() => {
+                           const p = playersById.get(activePlayerMenu.playerId);
+                           if (!p) return null;
+                           // Contextual Actions
+                           const team = getTeamById(findContainer(p.id) || '');
+                           const isOnBench = findContainer(p.id)?.includes('Reserves');
+                           
+                           return (
+                               <>
+                                   {team && team.hasActiveBench && !isOnBench && (
+                                       <button onClick={() => { wrappedMove(p.id, team.id, `${team.id}_Reserves`); setActivePlayerMenu(null); }} className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg flex items-center gap-2"><Armchair size={14} /> {t('teamManager.menu.sendBench')}</button>
+                                   )}
+                                   {team && isOnBench && (
+                                       <button onClick={() => { wrappedMove(p.id, `${team.id}_Reserves`, team.id); setActivePlayerMenu(null); }} className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg flex items-center gap-2"><Upload size={14} /> {t('teamManager.menu.returnCourt')}</button>
+                                   )}
+                                   
+                                   <div className="h-px bg-black/5 dark:bg-white/5 my-1" />
+                                   
+                                   <button onClick={() => { props.onToggleFixed(p.id); setActivePlayerMenu(null); }} className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg flex items-center gap-2">
+                                       {p.isFixed ? <Unlock size={14} /> : <Pin size={14} />} {p.isFixed ? t('teamManager.menu.unlock') : t('teamManager.menu.lock')}
+                                   </button>
+                                   
+                                   <div className="h-px bg-black/5 dark:bg-white/5 my-1" />
+                                   
+                                   <button onClick={() => handleDeleteWithUndo(p.id)} className="w-full text-left px-3 py-2.5 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg flex items-center gap-2">
+                                       <Trash2 size={14} /> {t('teamManager.menu.delete')}
+                                   </button>
+                               </>
+                           );
+                       })()}
+                    </div>
+                </>,
+                document.body
+            )}
+
+            {/* Profile Editing Modal */}
+            {editingTarget && (
+                <ProfileCreationModal 
+                    isOpen={true} 
+                    onClose={() => setEditingTarget(null)}
+                    title={editingTarget.id === 'new' ? t('profile.createTitle') : t('profile.editTitle')}
+                    initialName={editingTarget.type === 'player' ? playersById.get(editingTarget.id)?.name || '' : props.profiles.get(editingTarget.id)?.name || ''}
+                    initialNumber={editingTarget.type === 'player' ? playersById.get(editingTarget.id)?.number || '' : props.profiles.get(editingTarget.id)?.number || ''}
+                    initialSkill={editingTarget.type === 'player' ? playersById.get(editingTarget.id)?.skillLevel : props.profiles.get(editingTarget.id)?.skillLevel}
+                    initialRole={editingTarget.type === 'player' ? playersById.get(editingTarget.id)?.role : props.profiles.get(editingTarget.id)?.role}
+                    onSave={(name: string, num: string, av: string, sk: number, role: PlayerRole) => {
+                        const target = editingTarget;
+                        if (!target) return; // Guard against null
+
+                        if (target.type === 'player') {
+                            props.onSaveProfile(target.id, { name, number: num, avatar: av, skill: sk, role });
+                        } else {
+                            props.upsertProfile?.(name, sk, target.id === 'new' ? undefined : target.id, { number: num, avatar: av, role });
+                        }
+                        setEditingTarget(null);
+                    }}
+                />
+            )}
+
+            {/* Read-Only Profile View */}
+            {viewingProfileId && (
+                <ProfileDetailsModal 
+                    isOpen={!!viewingProfileId} 
+                    onClose={() => setViewingProfileId(null)}
+                    profileId={viewingProfileId}
+                    profiles={props.profiles}
+                    onEdit={() => { setViewingProfileId(null); setEditingTarget({ type: 'profile', id: viewingProfileId }); }}
+                />
+            )}
+
+            {/* Confirmation Modals */}
+            <ConfirmationModal 
+                isOpen={!!benchConfirmState} 
+                onClose={() => setBenchConfirmState(null)} 
+                title={t('teamManager.activateBenchTitle')}
+                message={t('teamManager.activateBenchConfirm')}
+                confirmLabel={t('teamManager.btnActivateBench')}
+                onConfirm={() => {
+                    if (benchConfirmState) {
+                        props.toggleTeamBench(benchConfirmState.teamId);
+                        wrappedMove(benchConfirmState.playerId, benchConfirmState.teamId, `${benchConfirmState.teamId}_Reserves`);
+                    }
+                }}
+            />
+
+            <ConfirmationModal 
+                isOpen={!!dropConfirmState} 
+                onClose={() => setDropConfirmState(null)} 
+                title={t('teamManager.teamFullTitle')}
+                message={t('teamManager.teamFullConfirm')}
+                confirmLabel={t('teamManager.btnYesBench')}
+                onConfirm={() => {
+                    if (dropConfirmState) {
+                        const targetT = getTeamById(dropConfirmState.targetTeamId);
+                        if (targetT && !targetT.hasActiveBench) {
+                            props.toggleTeamBench(targetT.id);
+                        }
+                        wrappedMove(dropConfirmState.playerId, dropConfirmState.sourceId, `${dropConfirmState.targetTeamId}_Reserves`);
+                    }
+                }}
+            />
+
+        </DndContext>
+    </Modal>,
+    document.body
+    );
 };

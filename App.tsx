@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, lazy, Suspense, useCallback, useRef } from 'react';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { usePWAInstallPrompt } from './hooks/usePWAInstallPrompt';
@@ -83,11 +84,25 @@ const GameContent = () => {
       subText?: string;
       skill?: SkillType;
       color?: TeamColor;
-      systemIcon?: 'transfer' | 'save' | 'mic' | 'alert' | 'block' | 'undo' | 'delete' | 'add' | 'roster';
+      systemIcon?: 'transfer' | 'save' | 'mic' | 'alert' | 'block' | 'undo' | 'delete' | 'add' | 'roster' | 'party';
       onUndo?: () => void;
+      // New timestamp to force re-render on repeated errors
+      timestamp?: number;
   }>({
       visible: false, type: 'success', mainText: '', color: 'slate'
   });
+
+  const handleShowToast = useCallback((mainText: string, type: 'success' | 'error' | 'info', subText?: string, systemIcon?: any, onUndo?: () => void) => {
+      setNotificationState({
+          visible: true,
+          type,
+          mainText,
+          subText,
+          systemIcon,
+          onUndo,
+          timestamp: Date.now()
+      });
+  }, []);
 
   const savedMatchIdRef = useRef<string | null>(null);
   const audio = useGameAudio(state.config);
@@ -464,6 +479,7 @@ const GameContent = () => {
                     toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} matchLog={state.matchLog}
                     enablePlayerStats={state.config.enablePlayerStats} reorderQueue={reorderQueue} disbandTeam={disbandTeam}
                     restoreTeam={restoreTeam} onRestorePlayer={(p, t, i) => onRestorePlayer && onRestorePlayer(p, t, i)} resetRosters={resetRosters} relinkProfile={relinkProfile}
+                    onShowToast={handleShowToast}
                 />
             )}
             {state.isMatchOver && <MatchOverModal isOpen={state.isMatchOver} state={state} onRotate={rotateTeams} onReset={resetMatch} onUndo={handleUndo} />}
@@ -475,6 +491,7 @@ const GameContent = () => {
         <ReloadPrompt />
         <InstallReminder isVisible={tutorial.showReminder} onInstall={pwa.promptInstall} onDismiss={tutorial.dismissReminder} canInstall={pwa.isInstallable} isIOS={pwa.isIOS} />
         <NotificationToast 
+            key={notificationState.timestamp}
             visible={notificationState.visible} type={notificationState.type} mainText={notificationState.mainText}
             subText={notificationState.subText} teamColor={notificationState.color} skill={notificationState.skill}
             onClose={() => setNotificationState(prev => ({ ...prev, visible: false }))} isFullscreen={isFullscreen}

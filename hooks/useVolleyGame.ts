@@ -45,6 +45,14 @@ export const useVolleyGame = () => {
   const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
   
+  // Create a Ref to hold the latest state. This allows functions to access
+  // the current state without needing to be recreated on every render.
+  const stateRef = useRef(state);
+  
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
   const { profiles, upsertProfile, deleteProfile: deleteProfileStore, isReady: profilesReady, batchUpdateStats, findProfileByName } = usePlayerProfiles();
   const { setSeconds, start: startTimer, stop: stopTimer, reset: resetTimer, getTime } = useTimer();
 
@@ -55,6 +63,7 @@ export const useVolleyGame = () => {
   const optimisticNumberLocks = useRef<Set<string>>(new Set());
 
   // Clear locks whenever state updates (Source of truth has caught up)
+  // This guards against race conditions by releasing locks only after the reducer has processed the change
   useEffect(() => {
       optimisticNumberLocks.current.clear();
   }, [state.teamARoster, state.teamBRoster, state.queue]);
@@ -131,26 +140,30 @@ export const useVolleyGame = () => {
 
   // --- ROSTER ACTIONS (Smart Linking & Validation) ---
   
-  // Helper to find exact team object for player ID
+  // Helper to find exact team object for player ID using FRESH state ref
   const findTeamForPlayer = useCallback((playerId: string): Team | undefined => {
+      const currentState = stateRef.current;
+      
       // Check Court A
-      if (state.teamARoster.players.some(p => p.id === playerId) || (state.teamARoster.reserves || []).some(p => p.id === playerId)) {
-          return state.teamARoster;
+      if (currentState.teamARoster.players.some(p => p.id === playerId) || (currentState.teamARoster.reserves || []).some(p => p.id === playerId)) {
+          return currentState.teamARoster;
       }
       // Check Court B
-      if (state.teamBRoster.players.some(p => p.id === playerId) || (state.teamBRoster.reserves || []).some(p => p.id === playerId)) {
-          return state.teamBRoster;
+      if (currentState.teamBRoster.players.some(p => p.id === playerId) || (currentState.teamBRoster.reserves || []).some(p => p.id === playerId)) {
+          return currentState.teamBRoster;
       }
       // Check Queue
-      for (const t of state.queue) {
+      for (const t of currentState.queue) {
           if (t.players.some(p => p.id === playerId) || (t.reserves || []).some(p => p.id === playerId)) {
               return t;
           }
       }
       return undefined;
-  }, [state.teamARoster, state.teamBRoster, state.queue]);
+  }, []);
 
   const updatePlayer = useCallback((playerId: string, updates: Partial<Player>) => {
+      const currentState = stateRef.current;
+
       // 🛡️ SECURITY LAYER 3: Validate Number Uniqueness on Store Update
       if (updates.number !== undefined && updates.number !== '') {
           const team = findTeamForPlayer(playerId);
@@ -167,7 +180,7 @@ export const useVolleyGame = () => {
               const lockKey = `${team.id}:${updates.number.trim()}`;
               if (optimisticNumberLocks.current.has(lockKey)) {
                   console.warn(`[Race Condition] Blocked rapid update for ${lockKey}`);
-                  return { success: false, error: `O número ${updates.number} já está sendo atribuído.` };
+                  return { success: false, error: `Number ${updates.number} is already being assigned.` };
               }
               optimisticNumberLocks.current.add(lockKey);
           }
@@ -178,9 +191,9 @@ export const useVolleyGame = () => {
 
       // Auto-Sync logic for linked profiles
       const allPlayers = [
-          ...state.teamARoster.players, ...(state.teamARoster.reserves || []),
-          ...state.teamBRoster.players, ...(state.teamBRoster.reserves || []),
-          ...state.queue.flatMap(t => [...t.players, ...(t.reserves||[])])
+          ...currentState.teamARoster.players, ...(currentState.teamARoster.reserves || []),
+          ...currentState.teamBRoster.players, ...(currentState.teamBRoster.reserves || []),
+          ...currentState.queue.flatMap(t => [...t.players, ...(t.reserves||[])])
       ];
       const player = allPlayers.find(p => p.id === playerId);
 
@@ -202,7 +215,7 @@ export const useVolleyGame = () => {
           }
       }
       return { success: true };
-  }, [state, profiles, upsertProfile, findTeamForPlayer]);
+  }, [profiles, upsertProfile, findTeamForPlayer]);
 
   const updateTeamName = useCallback((teamId: string, name: string) => dispatch({ type: 'ROSTER_UPDATE_TEAM_NAME', teamId, name }), []);
   const updateTeamColor = useCallback((teamId: string, color: TeamColor) => dispatch({ type: 'ROSTER_UPDATE_TEAM_COLOR', teamId, color }), []);
@@ -211,16 +224,17 @@ export const useVolleyGame = () => {
   
   // 🛡️ REFACTORED: ADD PLAYER WITH AUTO-LINKING & VALIDATION
   const addPlayer = useCallback((name: string, target: string, number?: string, skill?: number, existingPlayer?: Player): { success: boolean, error?: string } => {
+      const currentState = stateRef.current;
       let p: Player;
       
       // Determine Target Team for Validation
       let targetTeam: Team | undefined;
-      if (target === 'A' || target === state.teamARoster.id || target === 'A_Reserves') targetTeam = state.teamARoster;
-      else if (target === 'B' || target === state.teamBRoster.id || target === 'B_Reserves') targetTeam = state.teamBRoster;
+      if (target === 'A' || target === currentState.teamARoster.id || target === 'A_Reserves') targetTeam = currentState.teamARoster;
+      else if (target === 'B' || target === currentState.teamBRoster.id || target === 'B_Reserves') targetTeam = currentState.teamBRoster;
       else if (target === 'Queue') {
           // Handle explicit "Queue" target which usually appends to the last team
-          if (state.queue.length > 0) {
-              const lastTeam = state.queue[state.queue.length - 1];
+          if (currentState.queue.length > 0) {
+              const lastTeam = currentState.queue[currentState.queue.length - 1];
               // Only validate against last team if it has space, otherwise a new team is created (empty) so no conflict
               if (lastTeam.players.length < PLAYERS_PER_TEAM) {
                   targetTeam = lastTeam;
@@ -229,7 +243,7 @@ export const useVolleyGame = () => {
       }
       else {
           const qId = target.replace('_Reserves', '');
-          targetTeam = state.queue.find(t => t.id === qId);
+          targetTeam = currentState.queue.find(t => t.id === qId);
       }
 
       if (existingPlayer) {
@@ -272,7 +286,7 @@ export const useVolleyGame = () => {
           // 🔒 OPTIMISTIC LOCK: Check against pending adds
           const lockKey = `${targetTeam.id}:${p.number.trim()}`;
           if (optimisticNumberLocks.current.has(lockKey)) {
-              return { success: false, error: `O número ${p.number} já está sendo atribuído.` };
+              return { success: false, error: `Number ${p.number} is already being assigned.` };
           }
           optimisticNumberLocks.current.add(lockKey);
       }
@@ -280,7 +294,7 @@ export const useVolleyGame = () => {
       dispatch({ type: 'ROSTER_ADD_PLAYER', player: p, targetId: target });
       return { success: true };
 
-  }, [profiles, profilesReady, findProfileByName, state.teamARoster, state.teamBRoster, state.queue]);
+  }, [profiles, profilesReady, findProfileByName]);
 
   const restorePlayer = useCallback((player: Player, targetId: string, index?: number) => {
       dispatch({ type: 'ROSTER_RESTORE_PLAYER', player, targetId, index });
@@ -347,12 +361,13 @@ export const useVolleyGame = () => {
 
   // 🛡️ CRITICAL FIX: VALIDATE NUMBER CONFLICTS WHEN SAVING PROFILE TO ROSTER PLAYER
   const savePlayerToProfile = useCallback((playerId: string, overrides?: { name?: string, number?: string, avatar?: string, skill?: number, role?: PlayerRole }) => {
+      const currentState = stateRef.current;
       // 1. Locate Player in current game state
       let p: Player | undefined;
       const all = [
-        ...state.teamARoster.players, ...(state.teamARoster.reserves || []),
-        ...state.teamBRoster.players, ...(state.teamBRoster.reserves || []),
-        ...state.queue.flatMap(t => [...t.players, ...(t.reserves||[])])
+        ...currentState.teamARoster.players, ...(currentState.teamARoster.reserves || []),
+        ...currentState.teamBRoster.players, ...(currentState.teamBRoster.reserves || []),
+        ...currentState.queue.flatMap(t => [...t.players, ...(t.reserves||[])])
       ];
       p = all.find(x => x.id === playerId);
       
@@ -411,11 +426,12 @@ export const useVolleyGame = () => {
       });
 
       return { success: true };
-  }, [state, upsertProfile, findProfileByName, findTeamForPlayer]);
+  }, [upsertProfile, findProfileByName, findTeamForPlayer]);
 
   const revertPlayerChanges = useCallback((playerId: string) => {
+      const currentState = stateRef.current;
       let p;
-      const all = [...state.teamARoster.players, ...state.teamBRoster.players, ...state.queue.flatMap(t => t.players)];
+      const all = [...currentState.teamARoster.players, ...currentState.teamBRoster.players, ...currentState.queue.flatMap(t => t.players)];
       p = all.find(x => x.id === playerId);
       if(p && p.profileId) {
           const prof = profiles.get(p.profileId);
@@ -423,14 +439,15 @@ export const useVolleyGame = () => {
               dispatch({ type: 'ROSTER_UPDATE_PLAYER', playerId, updates: { name: prof.name, skillLevel: prof.skillLevel, number: prof.number, role: prof.role } });
           }
       }
-  }, [state, profiles]);
+  }, [profiles]);
 
   // 🛡️ NEW: RELINK PROFILE TO ROSTER (Fixes Undo Deletion Orphan Issue)
   const relinkProfile = useCallback((profile: PlayerProfile) => {
+      const currentState = stateRef.current;
       const allPlayers = [
-          ...state.teamARoster.players, ...(state.teamARoster.reserves || []),
-          ...state.teamBRoster.players, ...(state.teamBRoster.reserves || []),
-          ...state.queue.flatMap(t => [...t.players, ...(t.reserves||[])])
+          ...currentState.teamARoster.players, ...(currentState.teamARoster.reserves || []),
+          ...currentState.teamBRoster.players, ...(currentState.teamBRoster.reserves || []),
+          ...currentState.queue.flatMap(t => [...t.players, ...(t.reserves||[])])
       ];
 
       allPlayers.forEach(p => {
@@ -453,7 +470,7 @@ export const useVolleyGame = () => {
               });
           }
       });
-  }, [state]);
+  }, []);
 
   // 🛡️ WRAPPER: Deletes profile from store AND updates roster visual state
   const deleteProfileWrapper = useCallback((id: string) => {

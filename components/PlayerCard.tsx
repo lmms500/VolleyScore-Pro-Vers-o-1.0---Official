@@ -1,11 +1,12 @@
 
-import React, { memo, useMemo, useCallback } from 'react';
+import React, { memo, useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Player, PlayerProfile, PlayerRole } from '../types';
 import { Pin, Save, Check, MoreVertical, Hash, Edit2, RefreshCw, Shield, Hand, Zap, Target, Swords, Trophy } from 'lucide-react';
 import { SkillSlider } from './ui/SkillSlider';
 import { useHaptics } from '../hooks/useHaptics';
+import { motion } from 'framer-motion';
 
 interface PlayerCardProps {
     player: Player;
@@ -17,8 +18,8 @@ interface PlayerCardProps {
     onUpdateNumber?: (id: string, number: string) => void;
     onUpdateSkill?: (id: string, skill: number) => void;
     
-    // New Unified Handler
-    onUpdatePlayer: (id: string, updates: Partial<Player>) => void;
+    // New Unified Handler - Expects optional result return
+    onUpdatePlayer: (id: string, updates: Partial<Player>) => void | { success: boolean; error?: string };
 
     onSaveProfile: (id: string, overrides: { name: string, number?: string, avatar?: string, skill: number, role?: PlayerRole }) => void;
     onRequestProfileEdit: (id: string) => void;
@@ -29,15 +30,19 @@ interface PlayerCardProps {
     onShowToast?: (msg: string, type: 'success' | 'info' | 'error') => void;
     isCompact?: boolean;
     forceDragStyle?: boolean;
+    
+    // Controlled Editing Props
+    activeNumberId?: string | null;
+    onRequestEditNumber?: (id: string) => void;
 }
 
 const EditableTitle = memo(({ name, onSave, className }: { name: string; onSave: (val: string) => void; className?: string }) => {
-    const [isEditing, setIsEditing] = React.useState(false);
-    const [val, setVal] = React.useState(name);
-    const inputRef = React.useRef<HTMLInputElement>(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [val, setVal] = useState(name);
+    const inputRef = useRef<HTMLInputElement>(null);
   
-    React.useEffect(() => { setVal(name); }, [name]);
-    React.useEffect(() => { if(isEditing) inputRef.current?.focus(); }, [isEditing]);
+    useEffect(() => { setVal(name); }, [name]);
+    useEffect(() => { if(isEditing) inputRef.current?.focus(); }, [isEditing]);
   
     const save = () => {
       setIsEditing(false);
@@ -64,47 +69,161 @@ const EditableTitle = memo(({ name, onSave, className }: { name: string; onSave:
     );
 });
 
-const EditableNumber = memo(({ number, onSave }: { number?: string; onSave: (val: string) => void }) => {
-    const [isEditing, setIsEditing] = React.useState(false);
-    const [val, setVal] = React.useState(number || '');
-    const inputRef = React.useRef<HTMLInputElement>(null);
+/**
+ * EditableNumber v2: Error Focus Trap Edition
+ * Implements strict blocking logic for invalid inputs with a visual overlay trap.
+ */
+const EditableNumber = memo(({ 
+    number, 
+    onSave, 
+    isOpen, 
+    onRequestOpen, 
+    onRequestClose 
+}: { 
+    number?: string; 
+    onSave: (val: string) => void | { success: boolean; error?: string };
+    isOpen?: boolean;
+    onRequestOpen?: () => void;
+    onRequestClose?: () => void;
+}) => {
+    // Internal state mainly for the value while typing.
+    const [val, setVal] = useState(number || '');
+    const [isError, setIsError] = useState(false);
+    
+    // Legacy local state fallback if props not provided
+    const [localIsEditing, setLocalIsEditing] = useState(false);
+    
+    const isEditing = isOpen !== undefined ? isOpen : localIsEditing;
+    const inputRef = useRef<HTMLInputElement>(null);
 
-    // CRITICAL: Reset internal state when prop changes. 
-    // This allows the parent to force-revert the input if validation fails.
-    React.useEffect(() => { 
+    // Reset internal state when prop changes (external update).
+    useEffect(() => { 
         setVal(number || ''); 
-    }, [number]);
+        if (!isOpen) setIsError(false);
+    }, [number, isOpen]);
 
-    React.useEffect(() => { if(isEditing) inputRef.current?.focus(); }, [isEditing]);
-
-    const save = () => {
-        const trimmed = val.trim();
-        setIsEditing(false);
-        // Always call onSave to allow parent validation logic to run, even if seemingly unchanged
-        // But optimization: only if trimmed is different from current prop or if empty to clear
-        if (trimmed !== (number || '')) {
-            onSave(trimmed);
-        } else {
-            // Reset to prop value just in case
-            setVal(number || '');
+    useEffect(() => { 
+        if(isEditing) {
+            // Slight delay to ensure layout is ready
+            requestAnimationFrame(() => inputRef.current?.focus());
         }
+    }, [isEditing]);
+
+    // CORE TRAP LOGIC
+    const attemptSaveAndClose = (source?: 'blur' | 'enter' | 'clickOutside') => {
+        const trimmed = val.trim();
+        
+        // 1. If unchanged or cleared, allow exit immediately (Empty is valid)
+        if (trimmed === (number || '') || trimmed === '') {
+            setVal(trimmed); // Normalize empty string
+            setIsError(false);
+            if(onRequestClose) onRequestClose();
+            else setLocalIsEditing(false);
+            return;
+        }
+
+        // 2. Attempt Save (Calls parent validation)
+        const result = onSave(trimmed);
+        
+        // 3. Check for Failure
+        if (result && result.success === false) {
+            // FAILURE: Activate Trap
+            setIsError(true);
+            
+            // Re-Focus Forcefully (keep keyboard up on mobile)
+            // Critical for trap: If blur happened, bring focus back.
+            requestAnimationFrame(() => {
+                inputRef.current?.focus();
+            });
+            
+            // DO NOT CLOSE. State remains 'isEditing'.
+        } else {
+            // SUCCESS: Close
+            setIsError(false);
+            if(onRequestClose) onRequestClose();
+            else setLocalIsEditing(false);
+        }
+    };
+
+    const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
+        e.stopPropagation();
+        if(onRequestOpen) onRequestOpen();
+        else setLocalIsEditing(true);
+    };
+
+    // This handles the "Trap" - if user clicks the overlay, we try to save/close.
+    const handleOverlayClick = (e: React.MouseEvent | React.TouchEvent) => {
+        e.preventDefault(); 
+        e.stopPropagation();
+        attemptSaveAndClose('clickOutside');
     };
 
     if(isEditing) {
         return (
-            <input 
-                ref={inputRef} type="tel" maxLength={3}
-                className={`w-7 h-7 bg-white dark:bg-black/50 text-center rounded-md border outline-none text-xs font-bold text-slate-800 dark:text-white shadow-sm transition-all border-indigo-500`}
-                value={val} onChange={e => setVal(e.target.value)}
-                onBlur={save} onKeyDown={e => { if(e.key === 'Enter') save(); if(e.key === 'Escape') setIsEditing(false); }}
-                onPointerDown={e => e.stopPropagation()} 
-            />
+            <>
+                {/* TRAP OVERLAY: Blocks clicks outside when editing to prevent navigation */}
+                <div 
+                    className="fixed inset-0 z-40 bg-transparent cursor-default"
+                    onMouseDown={handleOverlayClick}
+                    onTouchStart={handleOverlayClick}
+                />
+                
+                <motion.input 
+                    ref={inputRef} 
+                    type="tel" 
+                    maxLength={3}
+                    autoFocus
+                    animate={isError ? { 
+                        x: [0, -4, 4, -4, 4, 0], 
+                        borderColor: '#e11d48', // rose-600
+                        color: '#e11d48', 
+                        backgroundColor: 'rgba(255, 228, 230, 0.9)', // rose-100 high opacity
+                        scale: [1, 1.1, 1],
+                    } : { 
+                        x: 0, 
+                        borderColor: '#6366f1',
+                        color: 'inherit',
+                        backgroundColor: 'rgba(255, 255, 255, 1)' 
+                    }}
+                    transition={{ duration: 0.3 }}
+                    className={`
+                        relative z-50 w-8 h-8 text-center rounded-lg border-2 outline-none text-xs font-black shadow-lg transition-all
+                        ${isError ? 'border-rose-600 text-rose-600 shadow-rose-500/30' : 'bg-white dark:bg-black/80 text-slate-800 dark:text-white'}
+                    `}
+                    value={val} 
+                    onChange={e => { 
+                        setVal(e.target.value); 
+                        if (isError) setIsError(false); // Clear error visual while typing
+                    }}
+                    onBlur={(e) => {
+                        // Only trigger save on blur if NOT already handled by overlay/enter
+                        // But since we have the overlay, blur usually means clicking browser chrome or tabbing.
+                        // We still attempt save.
+                        attemptSaveAndClose('blur');
+                    }}
+                    onKeyDown={e => { 
+                        if(e.key === 'Enter') {
+                            e.preventDefault(); // Stop form submit
+                            attemptSaveAndClose('enter');
+                        }
+                        if(e.key === 'Escape') { 
+                            // Escape implies "Cancel/Revert" -> Always allow exit
+                            setVal(number || ''); 
+                            setIsError(false);
+                            if(onRequestClose) onRequestClose(); 
+                            else setLocalIsEditing(false); 
+                        } 
+                    }}
+                    onClick={e => e.stopPropagation()}
+                    onPointerDown={e => e.stopPropagation()} 
+                />
+            </>
         );
     }
 
     return (
         <button 
-            onClick={() => setIsEditing(true)} onPointerDown={e => e.stopPropagation()}
+            onClick={handleStart} onPointerDown={e => e.stopPropagation()}
             className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black border transition-all flex-shrink-0 ${number ? 'bg-white/80 dark:bg-white/5 text-slate-800 dark:text-white border-transparent shadow-sm' : 'bg-transparent text-slate-300 dark:text-slate-600 border-transparent hover:border-slate-300 hover:text-slate-400'}`}
         >
             {number || <Hash size={12} />}
@@ -115,21 +234,22 @@ const EditableNumber = memo(({ number, onSave }: { number?: string; onSave: (val
 export const PlayerCard = memo(({ 
     player, locationId, profile, 
     onUpdatePlayer, onSaveProfile, onRequestProfileEdit, onViewProfile,
-    onToggleMenu, isMenuActive, onShowToast, forceDragStyle = false 
+    onToggleMenu, isMenuActive, onShowToast, forceDragStyle = false,
+    activeNumberId, onRequestEditNumber
 }: PlayerCardProps) => {
   const haptics = useHaptics();
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: player.id,
     data: { fromId: locationId, player },
-    disabled: player.isFixed || isMenuActive,
+    disabled: player.isFixed || isMenuActive || (activeNumberId === player.id), // Disable drag if editing number
   });
 
   const style = { 
       transform: CSS.Transform.toString(transform), 
       transition, 
       opacity: isDragging ? 0.9 : 1, 
-      zIndex: isDragging ? 50 : (isMenuActive ? 40 : 'auto'),
+      zIndex: isDragging ? 50 : (isMenuActive || activeNumberId === player.id ? 40 : 'auto'),
       scale: isDragging ? 1.05 : 1, 
       boxShadow: isDragging ? '0 10px 30px -10px rgba(0,0,0,0.3)' : 'none',
   };
@@ -203,10 +323,16 @@ export const PlayerCard = memo(({
   return (
     <div 
         ref={setNodeRef} style={style} {...attributes} {...listeners} data-player-card="true" 
-        className={`group relative flex items-center justify-between rounded-2xl border touch-manipulation py-1.5 px-2.5 min-h-[54px] ${forceDragStyle ? containerClass : (locationId.includes('_Reserves') ? reserveClass : (player.isFixed ? fixedClass : (specialClass || containerClass)))} ${!player.isFixed && !isMenuActive ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`group relative flex items-center justify-between rounded-2xl border touch-manipulation py-1.5 px-2.5 min-h-[54px] ${forceDragStyle ? containerClass : (locationId.includes('_Reserves') ? reserveClass : (player.isFixed ? fixedClass : (specialClass || containerClass)))} ${!player.isFixed && !isMenuActive && activeNumberId !== player.id ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
         <div className="flex items-center gap-2 flex-shrink-0 self-center">
-            <EditableNumber number={player.number} onSave={(v) => onUpdatePlayer(player.id, { number: v })} />
+            <EditableNumber 
+                number={player.number} 
+                onSave={(v) => onUpdatePlayer(player.id, { number: v })} 
+                isOpen={activeNumberId === player.id}
+                onRequestOpen={() => onRequestEditNumber && onRequestEditNumber(player.id)}
+                onRequestClose={() => onRequestEditNumber && onRequestEditNumber('')}
+            />
         </div>
         
         {/* Interaction Split: Name is one zone, Avatar is another */}
@@ -282,7 +408,7 @@ export const PlayerCard = memo(({
     </div>
   );
 }, (prev, next) => {
-    if (prev.locationId !== next.locationId || prev.isCompact !== next.isCompact || prev.forceDragStyle !== next.forceDragStyle || prev.isMenuActive !== next.isMenuActive) return false;
+    if (prev.locationId !== next.locationId || prev.isCompact !== next.isCompact || prev.forceDragStyle !== next.forceDragStyle || prev.isMenuActive !== next.isMenuActive || prev.activeNumberId !== next.activeNumberId) return false;
     
     // Check Player changes
     const playerEq = prev.player.id === next.player.id && prev.player.name === next.player.name && prev.player.number === next.player.number && prev.player.skillLevel === next.player.skillLevel && prev.player.isFixed === next.player.isFixed && prev.player.profileId === next.player.profileId && prev.player.role === next.player.role;

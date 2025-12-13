@@ -1,5 +1,6 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TeamColor, SkillType } from '../../types';
 import { resolveTheme } from '../../utils/colors';
@@ -21,7 +22,7 @@ interface NotificationToastProps {
   duration?: number;
   isFullscreen?: boolean;
   systemIcon?: 'transfer' | 'save' | 'mic' | 'alert' | 'block' | 'undo' | 'delete' | 'add' | 'roster' | 'party';
-  onUndo?: () => void; // New Prop for Undo Actions
+  onUndo?: () => void;
 }
 
 const skillIcons: Record<SkillType | 'generic', any> = {
@@ -57,6 +58,12 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   visible, type, mainText, subText, teamColor, skill, onClose, duration = 3000, isFullscreen, systemIcon, onUndo
 }) => {
   const onCloseRef = useRef(onClose);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -68,8 +75,8 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
         const isThinking = mainText === "Thinking...";
         if (isThinking) return; 
 
-        // If Undo is available, give a bit more time to react
-        const finalDuration = (type === 'error' || onUndo) ? 5000 : duration;
+        // Error toasts persist longer to be read
+        const finalDuration = (type === 'error' || onUndo) ? 4000 : duration;
         const timer = setTimeout(() => {
             onCloseRef.current();
         }, finalDuration);
@@ -77,6 +84,8 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
         return () => clearTimeout(timer);
     }
   }, [visible, duration, type, mainText, onUndo]);
+
+  if (!mounted) return null;
 
   let theme = {
       iconBg: 'bg-slate-100 dark:bg-white/10',
@@ -176,7 +185,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
       topLabel = subText || 'Error';
       bottomLabel = mainText ? mainText : "Something went wrong";
   } else {
-      topLabel = subText || 'Notification';
+      topLabel = subText || 'Info';
       bottomLabel = mainText;
   }
 
@@ -188,79 +197,83 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
       rounded-2xl
       bg-white/95 dark:bg-[#020617]/95 backdrop-blur-md
       border border-black/5 dark:border-white/10
-      shadow-lg shadow-black/10 dark:shadow-black/40
+      shadow-2xl shadow-black/30 dark:shadow-black/60
       ring-1 ring-black/5 dark:ring-white/5
       min-w-[160px] w-auto max-w-sm h-auto
       cursor-pointer active:scale-95 transition-transform
   `;
 
-  return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-            key="notification-toast"
-            initial={{ opacity: 0, y: -20, x: "-50%", scale: 0.9, filter: 'blur(8px)' }}
-            animate={{ opacity: 1, y: 0, x: "-50%", scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: -10, x: "-50%", scale: 0.95, filter: 'blur(4px)', transition: { duration: 0.2 } }}
-            transition={softBounce}
-            className={`fixed left-1/2 z-[100] flex justify-center ${positionClass}`}
-            onClick={onClose}
-        >
-            <div className={containerClass}>
-                
-                <div className={`
-                    relative w-8 h-8 rounded-full flex items-center justify-center shrink-0
-                    ${theme.iconBg} ${theme.borderColor} border
-                `}>
-                    <theme.Icon size={16} className={theme.iconColor} strokeWidth={2.5} />
-                    {type === 'success' && !systemIcon && (
-                        <motion.div 
-                           className={`absolute inset-0 rounded-full ${theme.iconBg}`}
-                           animate={{ scale: [1, 1.4], opacity: [0.5, 0] }}
-                           transition={{ duration: 1.5, repeat: Infinity }}
-                        />
-                    )}
-                    {mainText === "Thinking..." && (
-                        <motion.div 
-                           className={`absolute inset-0 rounded-full border-2 border-violet-500 border-t-transparent`}
-                           animate={{ rotate: 360 }}
-                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        />
-                    )}
-                </div>
+  // Wrapper div ensures this element sits on top of EVERYTHING in the portal
+  return createPortal(
+    <div className="fixed inset-0 pointer-events-none z-[10000] flex justify-center overflow-visible">
+        <AnimatePresence>
+        {visible && (
+            <motion.div
+                key="notification-toast"
+                initial={{ opacity: 0, y: -20, scale: 0.9, filter: 'blur(8px)' }}
+                animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -10, scale: 0.95, filter: 'blur(4px)', transition: { duration: 0.2 } }}
+                transition={softBounce}
+                className={`absolute ${positionClass}`}
+                onClick={onClose}
+            >
+                <div className={containerClass}>
+                    
+                    <div className={`
+                        relative w-8 h-8 rounded-full flex items-center justify-center shrink-0
+                        ${theme.iconBg} ${theme.borderColor} border
+                    `}>
+                        <theme.Icon size={16} className={theme.iconColor} strokeWidth={2.5} />
+                        {type === 'success' && !systemIcon && (
+                            <motion.div 
+                            className={`absolute inset-0 rounded-full ${theme.iconBg}`}
+                            animate={{ scale: [1, 1.4], opacity: [0.5, 0] }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                            />
+                        )}
+                        {mainText === "Thinking..." && (
+                            <motion.div 
+                            className={`absolute inset-0 rounded-full border-2 border-violet-500 border-t-transparent`}
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            />
+                        )}
+                    </div>
 
-                <div className="flex flex-col justify-center mr-2 flex-1 min-w-0">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 leading-none mb-0.5 whitespace-normal">
-                        {topLabel}
-                    </span>
-                    <span className={`text-xs font-black leading-tight tracking-tight ${theme.textColor} whitespace-normal break-words`}>
-                        {bottomLabel}
-                    </span>
-                </div>
+                    <div className="flex flex-col justify-center mr-2 flex-1 min-w-0">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 leading-none mb-0.5 whitespace-normal">
+                            {topLabel}
+                        </span>
+                        <span className={`text-xs font-black leading-tight tracking-tight ${theme.textColor} whitespace-normal break-words`}>
+                            {bottomLabel}
+                        </span>
+                    </div>
 
-                {onUndo ? (
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onUndo(); onClose(); }}
-                        className="shrink-0 pl-3 border-l border-black/10 dark:border-white/10 flex flex-col items-center justify-center hover:opacity-70 active:scale-95 transition-all"
-                    >
-                        <RotateCcw size={14} className="text-indigo-500 dark:text-indigo-400 mb-0.5" />
-                        <span className="text-[9px] font-black uppercase tracking-wider text-indigo-500 dark:text-indigo-400">UNDO</span>
-                    </button>
-                ) : (
-                    type === 'success' ? (
-                         <div className="shrink-0 pl-2 border-l border-black/5 dark:border-white/5 opacity-50">
-                            <span className={`text-[10px] font-black ${theme.iconColor}`}>+1</span>
-                         </div>
+                    {onUndo ? (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onUndo(); onClose(); }}
+                            className="shrink-0 pl-3 border-l border-black/10 dark:border-white/10 flex flex-col items-center justify-center hover:opacity-70 active:scale-95 transition-all"
+                        >
+                            <RotateCcw size={14} className="text-indigo-500 dark:text-indigo-400 mb-0.5" />
+                            <span className="text-[9px] font-black uppercase tracking-wider text-indigo-500 dark:text-indigo-400">UNDO</span>
+                        </button>
                     ) : (
-                        <div className="shrink-0 pl-2 border-l border-black/5 dark:border-white/5 opacity-30 hover:opacity-100 transition-opacity">
-                            <X size={12} className="text-slate-400" />
-                        </div>
-                    )
-                )}
+                        type === 'success' ? (
+                            <div className="shrink-0 pl-2 border-l border-black/5 dark:border-white/5 opacity-50">
+                                <span className={`text-[10px] font-black ${theme.iconColor}`}>+1</span>
+                            </div>
+                        ) : (
+                            <div className="shrink-0 pl-2 border-l border-black/5 dark:border-white/5 opacity-30 hover:opacity-100 transition-opacity">
+                                <X size={12} className="text-slate-400" />
+                            </div>
+                        )
+                    )}
 
-            </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+                </div>
+            </motion.div>
+        )}
+        </AnimatePresence>
+    </div>,
+    document.body
   );
 };
