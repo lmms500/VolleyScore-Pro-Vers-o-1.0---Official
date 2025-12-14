@@ -102,6 +102,34 @@ export const createTeam = (name: string, players: Player[], color: string = 'sla
     hasActiveBench: false
 });
 
+/**
+ * 🔢 GLOBAL NAMING LOGIC
+ * Scans ALL teams (Court A, Court B, Queue) to find the highest "Team N" number.
+ * Ensures that if "Team 4" exists, the next one is "Team 5", regardless of queue length.
+ */
+const generateNextTeamName = (courtA: Team, courtB: Team, queue: Team[]): string => {
+    const allTeams = [courtA, courtB, ...queue];
+    let maxNumber = 0;
+    
+    // Regex to match "Team 1", "Time 2", "Equipo 3" etc. (Case insensitive)
+    // Matches common variations to be robust against manual renames or localization
+    const regex = /(?:Team|Time|Equipo)\s+(\d+)/i;
+
+    allTeams.forEach(t => {
+        const match = t.name.match(regex);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            if (!isNaN(num)) {
+                maxNumber = Math.max(maxNumber, num);
+            }
+        }
+    });
+
+    // If maxNumber is 0 (e.g. only "Home" and "Guest" exist), start at 1.
+    // Otherwise increment.
+    return `Team ${maxNumber + 1}`;
+};
+
 // --- PURE LOGIC HANDLERS ---
 
 export const handleAddPlayer = (
@@ -168,11 +196,15 @@ export const handleAddPlayer = (
 
     if (targetId === 'Queue') {
         const newQueue = [...queue];
+        
+        // Check if the LAST team in queue has space
         if (newQueue.length > 0 && newQueue[newQueue.length - 1].players.length < PLAYERS_PER_TEAM) {
             const last = newQueue[newQueue.length - 1];
             newQueue[newQueue.length - 1] = { ...last, players: [...last.players, newPlayer] };
         } else {
-            newQueue.push(createTeam(`Team ${newQueue.length + 1}`, [newPlayer]));
+            // Create NEW Team with robust naming
+            const nextName = generateNextTeamName(courtA, courtB, newQueue);
+            newQueue.push(createTeam(nextName, [newPlayer]));
         }
         return { courtA, courtB, queue: newQueue };
     }

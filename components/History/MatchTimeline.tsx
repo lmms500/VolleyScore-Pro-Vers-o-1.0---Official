@@ -1,11 +1,12 @@
+
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Match } from '../../stores/historyStore';
 import { ActionLog, TeamId, SkillType } from '../../types';
 import { 
   Swords, Shield, Target, AlertTriangle, Timer, 
-  Clock, Share2, FileText, CheckCircle2, Crown, Circle, Skull
+  Clock, Share2, FileText, Circle, Skull, Crown, Info
 } from 'lucide-react';
-import { motion, Variants } from 'framer-motion';
+import { motion, Variants, AnimatePresence } from 'framer-motion';
 import { resolveTheme } from '../../utils/colors';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
@@ -17,16 +18,20 @@ interface MatchTimelineProps {
   match: Match;
 }
 
-interface TimelineEvent {
-  id: number;
-  type: 'POINT' | 'TIMEOUT' | 'SET_END' | 'SUDDEN_DEATH';
-  timeLabel: string;
+interface TimelineNode {
+  id: string; // Unique composite ID
+  type: 'START' | 'POINT' | 'TIMEOUT' | 'SET_END' | 'SUDDEN_DEATH' | 'END';
   timestamp: number;
-  team: TeamId | null;
-  scoreSnapshot: string;
+  timeLabel: string;
+  team: TeamId | null; // Null for system events
+  scoreSnapshot: string; // "10-9"
   description: string;
   player?: string;
   skill?: SkillType;
+  
+  // Visualization Props
+  isTop: boolean; // Team A is Top, Team B is Bottom
+  staggerLevel: number; // 0 (Base), 1 (Far), 2 (Very Far) - For zig-zag
 }
 
 // --- ANIMATION VARIANTS ---
@@ -34,161 +39,234 @@ const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.1 }
+    transition: { staggerChildren: 0.03, delayChildren: 0.1 }
   }
 };
 
 const nodeVariants: Variants = {
-  hidden: { opacity: 0, x: 20, scale: 0.8 },
+  hidden: { opacity: 0, scale: 0, y: 0 },
   visible: { 
     opacity: 1, 
-    x: 0, 
-    scale: 1,
-    transition: { type: "spring", stiffness: 350, damping: 25 } 
+    scale: 1, 
+    y: 0,
+    transition: { type: "spring", stiffness: 400, damping: 25 } 
   }
 };
 
 export const MatchTimeline: React.FC<MatchTimelineProps> = ({ match }) => {
   const { t } = useTranslation();
   const [isExporting, setIsExporting] = useState(false);
-  const [activeEventId, setActiveEventId] = useState<number | null>(null);
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const captureRef = useRef<HTMLDivElement>(null);
 
   const themeA = resolveTheme(match.teamARoster?.color || 'indigo');
   const themeB = resolveTheme(match.teamBRoster?.color || 'rose');
 
-  // Auto-scroll to end on mount
+  // Auto-scroll to start on mount
   useEffect(() => {
       if (scrollRef.current) {
-          scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+          setTimeout(() => {
+            if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+          }, 100);
       }
   }, [match]);
 
   const handleBackgroundClick = () => {
-      setActiveEventId(null);
+      setActiveNodeId(null);
   };
 
-  // --- DATA TRANSFORMATION ---
-  const events = useMemo(() => {
-    const list: TimelineEvent[] = [];
-    if (!match.actionLog || match.actionLog.length === 0) return list;
+  // --- 1. CORE LOGIC ENGINE ---
+  const timelineNodes = useMemo(() => {
+    if (!match.actionLog || match.actionLog.length === 0) return [];
 
-    const startTime = match.actionLog[0].timestamp || match.timestamp;
+    // 1.1. STRICT SORTING: The absolute source of truth is Time.
+    const sortedLogs = [...match.actionLog].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    
+    // Determine accurate Start Time
+    // match.timestamp is usually the END time (when saved).
+    // Start time is estimated by subtracting duration, or using the first log's time.
+    const firstLogTs = sortedLogs.length > 0 ? (sortedLogs[0].timestamp || 0) : 0;
+    const estimatedStart = match.timestamp - (match.durationSeconds * 1000);
+    // Use first log if valid and earlier than save time, otherwise estimate
+    const startTime = (firstLogTs > 0 && firstLogTs < match.timestamp) ? firstLogTs : estimatedStart;
+
+    const nodes: TimelineNode[] = [];
+
+    // Running State
     let scoreA = 0;
     let scoreB = 0;
     let currentSet = 1;
+    let wasInSuddenDeath = false;
+    
+    // Staggering State
+    let lastTeam: TeamId | null = null;
+    let streakCount = 0;
 
-    // Helper to resolve player name safely
+    // Helper: Player Name Resolution
     const getPlayerName = (id: string | null | undefined): string => {
-        if (!id || id === 'unknown') return t('scout.unknownPlayer');
+        if (!id || id === 'unknown') return '';
         const pA = match.teamARoster?.players.find(p => p.id === id) || match.teamARoster?.reserves?.find(p => p.id === id);
         if (pA) return pA.name;
         const pB = match.teamBRoster?.players.find(p => p.id === id) || match.teamBRoster?.reserves?.find(p => p.id === id);
-        return pB ? pB.name : t('scout.unknownPlayer');
+        return pB ? pB.name : '';
     };
 
-    match.actionLog.forEach((log: any, idx) => {
-        if (!log.timestamp) return;
+    // Helper: Format Time
+    const getTimeLabel = (ts: number) => {
+        const diff = Math.max(0, Math.floor((ts - startTime) / 60000));
+        return `${diff}'`;
+    };
+
+    // 1.2. INITIAL NODE
+    nodes.push({
+        id: 'node-start',
+        type: 'START',
+        timestamp: startTime,
+        timeLabel: '0\'',
+        team: null,
+        scoreSnapshot: '0-0',
+        description: 'START',
+        isTop: false,
+        staggerLevel: 0
+    });
+
+    sortedLogs.forEach((log, idx) => {
         
-        const diffMinutes = Math.floor((log.timestamp - startTime) / 60000);
-        const timeLabel = `${diffMinutes}'`;
+        // Detect Sudden Death Transition
+        // Logic: If the log says we ARE in sudden death (prevInSuddenDeath=true),
+        // but our local tracker says we weren't before, then the transition happened just now.
+        // The PREVIOUS point caused the tie, so we insert the marker NOW, before processing this new point.
+        if (log.type === 'POINT' && log.prevInSuddenDeath === true && !wasInSuddenDeath) {
+             nodes.push({
+                id: `sd-start-${idx}`,
+                type: 'SUDDEN_DEATH',
+                timestamp: (log.timestamp || 0) - 1, // Slightly before the point
+                timeLabel: getTimeLabel((log.timestamp || 0)),
+                team: null,
+                scoreSnapshot: `${scoreA}-${scoreB}`, // Snapshot before reset (e.g. 14-14)
+                description: t('status.sudden_death'),
+                isTop: false,
+                staggerLevel: 0
+            });
+            wasInSuddenDeath = true;
+            
+            // CRITICAL FIX: Reset scores because game engine resets to 0-0 in 3pt Sudden Death
+            // This ensures subsequent points (1-0, 2-0) match the timeline logic and set targets
+            scoreA = 0;
+            scoreB = 0;
+        } 
+        // Reset local tracker if we leave SD (e.g. new set started normally)
+        else if (log.type === 'POINT' && log.prevInSuddenDeath === false) {
+            wasInSuddenDeath = false;
+        }
 
         if (log.type === 'POINT') {
-            
-            // Check for Sudden Death Transition
-            // If current point was NOT in SD, but next point IS in SD, this point triggered the reset.
-            const nextLog = match.actionLog![idx + 1];
-            const isTransition = 
-                (log.prevInSuddenDeath === false || log.prevInSuddenDeath === undefined) &&
-                (nextLog && nextLog.type === 'POINT' && nextLog.prevInSuddenDeath === true);
-
+            // Update Score State
             if (log.team === 'A') scoreA++; else scoreB++;
+
+            // Stagger Logic: Zig-Zag for consecutive team points
+            if (log.team === lastTeam) {
+                streakCount++;
+            } else {
+                streakCount = 0;
+            }
+            lastTeam = log.team;
             
+            const staggerLevel = streakCount % 2; 
+
             let desc = t('common.add');
-            // Specific Skill Descriptions
             if (log.skill === 'attack') desc = t('scout.skills.attack');
             if (log.skill === 'block') desc = t('scout.skills.block');
             if (log.skill === 'ace') desc = t('scout.skills.ace');
             if (log.skill === 'opponent_error') desc = t('scout.skills.opponent_error');
 
-            list.push({
-                id: idx,
+            nodes.push({
+                id: `node-${idx}`,
                 type: 'POINT',
-                timeLabel,
-                timestamp: log.timestamp,
+                timestamp: log.timestamp || 0,
+                timeLabel: getTimeLabel(log.timestamp || 0),
                 team: log.team,
                 scoreSnapshot: `${scoreA}-${scoreB}`,
+                description: desc,
                 player: getPlayerName(log.playerId),
                 skill: log.skill,
-                description: desc
+                isTop: log.team === 'A',
+                staggerLevel: staggerLevel
             });
 
-            if (isTransition) {
-                // Insert Sudden Death Marker and Reset Scores
-                list.push({
-                    id: idx + 5000,
-                    type: 'SUDDEN_DEATH',
-                    timeLabel,
-                    timestamp: log.timestamp + 1,
-                    team: null,
-                    scoreSnapshot: "0-0",
-                    description: t('game.suddenDeath'),
-                    player: ''
-                });
-                scoreA = 0;
-                scoreB = 0;
-            }
-
-            // Detect Set End Heuristic
-            // Matches against match.sets history to determine where sets ended
+            // Set End Detection: Check against Match History Sets
+            // We verify if the current running score matches the stored set result
             const setRecord = match.sets.find(s => s.setNumber === currentSet);
             if (setRecord && scoreA === setRecord.scoreA && scoreB === setRecord.scoreB) {
-                list.push({
-                    id: idx + 9000,
+                nodes.push({
+                    id: `set-end-${currentSet}`,
                     type: 'SET_END',
-                    timeLabel,
-                    timestamp: log.timestamp + 2, // ensure it comes after SD marker if same tick
+                    timestamp: (log.timestamp || 0) + 1,
+                    timeLabel: getTimeLabel((log.timestamp || 0)),
                     team: null,
                     scoreSnapshot: `${scoreA}-${scoreB}`,
-                    description: `Set ${currentSet}`,
-                    player: ''
+                    description: `SET ${currentSet}`,
+                    isTop: false,
+                    staggerLevel: 0
                 });
-                scoreA = 0; 
+                
+                // Reset for next set logic simulation
+                scoreA = 0;
                 scoreB = 0;
                 currentSet++;
+                lastTeam = null;
+                streakCount = 0;
+                wasInSuddenDeath = false; // Reset SD tracker on set change
             }
-
-        } else if (log.type === 'TIMEOUT') {
-            list.push({
-                id: idx,
+        } 
+        else if (log.type === 'TIMEOUT') {
+            nodes.push({
+                id: `to-${idx}`,
                 type: 'TIMEOUT',
-                timeLabel,
-                timestamp: log.timestamp,
+                timestamp: log.timestamp || 0,
+                timeLabel: getTimeLabel(log.timestamp || 0),
                 team: log.team,
                 scoreSnapshot: `${scoreA}-${scoreB}`,
                 description: t('game.timeout'),
-                player: ''
+                isTop: log.team === 'A', // Timeouts appear on the team's side
+                staggerLevel: 2 // Push timeouts further out to distinct them
             });
         }
     });
 
-    return list;
+    // 1.3. END NODE
+    // Ensure END timestamp is after the last log
+    const lastLogTs = sortedLogs.length > 0 ? (sortedLogs[sortedLogs.length - 1].timestamp || 0) : startTime;
+    
+    nodes.push({
+        id: 'node-end',
+        type: 'END',
+        timestamp: lastLogTs + 1000,
+        timeLabel: '',
+        team: null,
+        scoreSnapshot: '',
+        description: 'END',
+        isTop: false,
+        staggerLevel: 0
+    });
+
+    return nodes;
   }, [match, t]);
 
-  // --- EXPORT LOGIC ---
+  // --- 2. EXPORT HANDLERS ---
   const handleExportText = async () => {
     setIsExporting(true);
     try {
         const lines = [`MATCH TIMELINE: ${match.teamAName} vs ${match.teamBName}`, `Date: ${new Date(match.timestamp).toLocaleDateString()}`, '--------------------------------'];
-        
-        events.forEach(e => {
+        timelineNodes.forEach(e => {
+            if (e.type === 'START' || e.type === 'END') return;
             if (e.type === 'SET_END') {
-                lines.push(`\n[${e.timeLabel}] --- SET FINISHED (${e.scoreSnapshot}) ---\n`);
+                lines.push(`\n[${e.timeLabel}] --- ${e.description} (${e.scoreSnapshot}) ---\n`);
                 return;
             }
             if (e.type === 'SUDDEN_DEATH') {
-                lines.push(`\n[${e.timeLabel}] !!! SUDDEN DEATH STARTED !!!\n`);
+                lines.push(`\n[${e.timeLabel}] !!! ${e.description} !!!\n`);
                 return;
             }
             const teamName = e.team === 'A' ? match.teamAName : (e.team === 'B' ? match.teamBName : 'System');
@@ -242,28 +320,32 @@ export const MatchTimeline: React.FC<MatchTimelineProps> = ({ match }) => {
       } catch(e) { console.error(e); } finally { setIsExporting(false); }
   };
 
-  const getIcon = (e: TimelineEvent) => {
-      if (e.type === 'TIMEOUT') return <Timer size={10} strokeWidth={3} />;
-      if (e.type === 'SET_END') return <Crown size={12} strokeWidth={3} />;
-      if (e.type === 'SUDDEN_DEATH') return <Skull size={12} strokeWidth={3} />;
+  const getIcon = (e: TimelineNode) => {
+      if (e.type === 'TIMEOUT') return <Timer size={10} strokeWidth={2.5} />;
       switch (e.skill) {
           case 'attack': return <Swords size={12} />;
           case 'block': return <Shield size={12} />;
           case 'ace': return <Target size={12} />;
           case 'opponent_error': return <AlertTriangle size={12} />;
-          default: return <Circle size={10} fill="currentColor" />; // Ball representation
+          default: return <Circle size={8} fill="currentColor" />;
       }
   };
 
-  if (events.length === 0) return null;
+  // --- RENDER ---
+  if (timelineNodes.length === 0) return null;
 
+  // Layout Constants
+  const ITEM_WIDTH = 80;
+  const CONTAINER_HEIGHT = 280; 
+  
   return (
     <div className="bg-white dark:bg-white/5 rounded-3xl border border-black/5 dark:border-white/10 shadow-sm overflow-hidden flex flex-col mt-4">
-        {/* Header */}
+        
+        {/* Header Control Bar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-black/5 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
             <div className="flex items-center gap-2">
                 <Clock size={16} className="text-indigo-500" />
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Match Timeline</h3>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Timeline</h3>
             </div>
             <div className="flex gap-2">
                 <button onClick={handleExportText} disabled={isExporting} className="p-2 rounded-xl bg-white dark:bg-white/10 border border-black/5 dark:border-white/10 text-slate-400 hover:text-indigo-500 dark:hover:text-white transition-colors" title="Export Text">
@@ -275,135 +357,159 @@ export const MatchTimeline: React.FC<MatchTimelineProps> = ({ match }) => {
             </div>
         </div>
 
-        {/* Scrollable Area - Fixed Height for 100% visibility without vertical scroll on page */}
+        {/* Horizontal Scroll Container */}
         <div 
             ref={scrollRef} 
-            className="overflow-x-auto w-full p-6 pb-2 no-scrollbar cursor-grab active:cursor-grabbing" 
+            className="overflow-x-auto w-full p-4 no-scrollbar cursor-grab active:cursor-grabbing relative" 
             style={{ scrollBehavior: 'smooth' }}
             onClick={handleBackgroundClick}
         >
-            <div ref={captureRef} className="min-w-max relative pb-8 pt-8 px-4 h-[240px] flex items-center">
+            <div ref={captureRef} className="flex items-center relative" style={{ height: `${CONTAINER_HEIGHT}px`, minWidth: 'max-content', paddingLeft: 40, paddingRight: 40 }}>
                 
-                {/* Central Axis */}
-                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-200 dark:bg-white/10 -translate-y-1/2 rounded-full" />
+                {/* Central Axis Line */}
+                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-200 dark:bg-white/10 -translate-y-1/2 rounded-full z-0" />
 
                 <motion.div 
                     variants={containerVariants}
                     initial="hidden"
                     animate="visible"
-                    className="flex items-center gap-16 relative z-10" // Generous gap for readability
+                    className="flex items-center relative z-10 gap-0"
                 >
-                    {/* Start Node */}
-                    <div className="flex flex-col items-center gap-2 relative">
-                        <div className="w-3 h-3 rounded-full bg-slate-400 ring-4 ring-slate-100 dark:ring-slate-800 z-20" />
-                        <span className="text-[10px] font-mono text-slate-400 absolute top-6">START</span>
-                    </div>
-
-                    {events.map((evt) => {
-                        const isTop = evt.team === 'A'; // Team A goes UP (Visually 'left' in some contexts, but Top here)
-                        const isSystem = evt.type === 'SET_END' || evt.type === 'SUDDEN_DEATH';
-                        const theme = isTop ? themeA : themeB;
+                    {timelineNodes.map((node, i) => {
                         
-                        const isActive = activeEventId === evt.id;
-
-                        if (isSystem) {
-                            const isSD = evt.type === 'SUDDEN_DEATH';
+                        // --- SYSTEM NODES (Start/End/Set/SuddenDeath) ---
+                        if (node.type === 'START' || node.type === 'END' || node.type === 'SET_END' || node.type === 'SUDDEN_DEATH') {
+                            const isSetEnd = node.type === 'SET_END';
+                            const isSD = node.type === 'SUDDEN_DEATH';
+                            
                             return (
                                 <motion.div 
-                                    key={evt.id} 
-                                    variants={nodeVariants} 
-                                    className="flex flex-col items-center justify-center relative group"
+                                    key={node.id}
+                                    variants={nodeVariants}
+                                    className="flex flex-col items-center justify-center relative z-20 mx-4"
                                 >
-                                    <div className={`h-32 w-px border-l-2 border-dashed ${isSD ? 'border-red-500/50 dark:border-red-500/30' : 'border-slate-300 dark:border-white/20'} absolute top-1/2 -translate-y-1/2`} />
-                                    <div className={`z-20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1 ${isSD ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-800 text-white'}`}>
+                                    {/* Vertical Line */}
+                                    {(isSetEnd || isSD) && (
+                                        <div className={`absolute top-1/2 -translate-y-1/2 h-40 w-px border-l-2 border-dashed ${isSD ? 'border-red-500/50' : 'border-slate-300 dark:border-white/20'}`} />
+                                    )}
+                                    
+                                    <div className={`
+                                        relative z-30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1.5 border-2 whitespace-nowrap
+                                        ${isSD 
+                                            ? 'bg-red-500 text-white border-white dark:border-slate-900 animate-pulse' 
+                                            : (isSetEnd ? 'bg-slate-800 text-white border-white dark:border-slate-900' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400 border-white dark:border-slate-800')}
+                                    `}>
                                         {isSD && <Skull size={10} />}
-                                        {evt.description}
+                                        {isSetEnd && <Crown size={10} />}
+                                        {node.description}
                                     </div>
-                                    <span className="text-[9px] font-bold text-slate-400 mt-2 bg-slate-100 dark:bg-slate-800 px-1 rounded">{evt.scoreSnapshot}</span>
+                                    
+                                    {(isSetEnd || isSD) && (
+                                        <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-2 bg-white/80 dark:bg-black/40 px-1.5 py-0.5 rounded backdrop-blur-sm">
+                                            {node.scoreSnapshot}
+                                        </span>
+                                    )}
                                 </motion.div>
                             );
                         }
 
-                        // Compact Node Layout with Interaction
+                        // --- POINT/TIMEOUT NODES ---
+                        const isActive = activeNodeId === node.id;
+                        const theme = node.team === 'A' ? themeA : themeB;
+                        
+                        // Staggering Logic (Vertical Offset)
+                        const baseOffset = 40;
+                        const staggerAmount = 35 * node.staggerLevel;
+                        const totalOffset = baseOffset + staggerAmount;
+                        const yOffset = node.isTop ? -totalOffset : totalOffset;
+                        
+                        // Connector Height
+                        const connectorHeight = Math.abs(yOffset);
+
                         return (
                             <motion.div 
-                                key={evt.id} 
+                                key={node.id}
                                 variants={nodeVariants}
-                                // CRITICAL: Higher Z-Index when active allows overlapping adjacent nodes without being hidden
-                                className={`
-                                    relative flex flex-col items-center justify-center group min-w-[20px] transition-all
-                                    ${isActive ? 'z-50' : 'z-10'}
-                                `}
+                                className={`relative flex flex-col items-center justify-center group`}
+                                style={{ 
+                                    width: ITEM_WIDTH, 
+                                    zIndex: isActive ? 50 : 10 
+                                }}
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    setActiveEventId(isActive ? null : evt.id);
+                                    setActiveNodeId(isActive ? null : node.id);
                                 }}
                             >
-                                {/* Vertical Connector - Lengthened to support higher placement */}
+                                {/* 1. Central Axis Dot */}
+                                <div className={`
+                                    w-2.5 h-2.5 rounded-full z-10 ring-2 ring-slate-50 dark:ring-[#0f172a] transition-transform duration-200
+                                    ${node.type === 'TIMEOUT' ? 'bg-slate-400' : theme.halo.replace('bg-', 'bg-')}
+                                    ${isActive ? 'scale-150 ring-4' : 'group-hover:scale-125'}
+                                `} />
+
+                                {/* 2. Connector Line */}
                                 <div 
-                                    className={`absolute left-1/2 -translate-x-1/2 w-0.5 transition-all duration-300
-                                    ${isTop ? 'bottom-1/2 origin-bottom' : 'top-1/2 origin-top'}
-                                    ${evt.type === 'TIMEOUT' 
-                                        ? 'bg-slate-300 dark:bg-white/20 h-10 border-l border-dashed border-slate-400 bg-transparent w-0' 
-                                        : `${theme.bg.replace('/20', '')} ${isActive ? 'h-20 opacity-100' : 'h-10 opacity-40 group-hover:h-14 group-hover:opacity-100'}`}
+                                    className={`absolute left-1/2 -translate-x-1/2 w-0.5 transition-all duration-300 origin-center
+                                    ${node.isTop ? 'bottom-1/2' : 'top-1/2'}
+                                    ${node.type === 'TIMEOUT' 
+                                        ? `bg-transparent border-l border-dashed border-slate-400` 
+                                        : `${theme.bg.replace('/20', '')}`}
+                                    ${isActive ? 'opacity-100' : 'opacity-30 group-hover:opacity-100'}
                                     `}
+                                    style={{ height: `${connectorHeight}px` }}
                                 />
 
-                                {/* Central Axis Dot */}
-                                <div className={`w-2.5 h-2.5 rounded-full z-10 ring-4 ring-slate-50 dark:ring-[#0f172a] ${evt.type === 'TIMEOUT' ? 'bg-slate-400' : theme.halo.replace('bg-', 'bg-')} transition-transform ${isActive ? 'scale-125' : ''}`} />
-
-                                {/* Time/Score Indicator - Positioned BETWEEN Dot and Bubble */}
-                                {/* Top (Team A): Bottom aligned (above axis). Bottom (Team B): Top aligned (below axis) */}
-                                <div className={`
-                                    absolute flex flex-col items-center transition-all duration-300 z-10
-                                    ${isTop 
-                                        ? 'bottom-3' 
-                                        : 'top-3'
-                                    }
-                                `}>
-                                    <span className={`
-                                        text-[8px] font-mono font-bold px-1 rounded backdrop-blur-sm whitespace-nowrap transition-colors
-                                        ${isActive ? 'text-slate-600 dark:text-white bg-white dark:bg-black/60 shadow-sm scale-110' : 'text-slate-400 bg-white/80 dark:bg-black/40'}
-                                    `}>
-                                        {evt.timeLabel} • {evt.scoreSnapshot}
-                                    </span>
-                                </div>
-
-                                {/* Event Bubble Container - Positioned FURTHER OUT */}
-                                <div className={`
-                                    absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 transition-all duration-300 w-max z-20
-                                    ${isTop 
-                                        ? (isActive ? 'bottom-14' : 'bottom-9 group-hover:bottom-11') 
-                                        : (isActive ? 'top-14' : 'top-9 group-hover:top-11')
-                                    }
-                                    ${isActive ? 'scale-110' : 'scale-100'}
-                                `}>
-                                    {/* Main Bubble */}
+                                {/* 3. The Event Bubble (Floating) */}
+                                <div 
+                                    className={`
+                                        absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 transition-all duration-300 w-max z-20
+                                        ${isActive ? 'scale-110 z-50' : 'scale-100'}
+                                    `}
+                                    style={{
+                                        transform: `translate(-50%, ${yOffset > 0 ? yOffset + 10 : yOffset - 10}px)`
+                                    }}
+                                >
+                                    {/* Bubble Content */}
                                     <div className={`
-                                        flex items-center gap-2 px-2.5 py-1.5 rounded-xl shadow-sm border backdrop-blur-sm cursor-pointer
-                                        ${evt.type === 'TIMEOUT' ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200' : `${theme.bg} ${theme.text} ${theme.textDark} ${theme.border}`}
-                                        ${isActive ? 'shadow-lg ring-2 ring-white/50 dark:ring-white/10' : ''}
+                                        flex items-center gap-2 px-2.5 py-1.5 rounded-xl shadow-sm border backdrop-blur-md cursor-pointer transition-all
+                                        ${node.type === 'TIMEOUT' 
+                                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700' 
+                                            : `${theme.bg} ${theme.text} ${theme.textDark} ${theme.border}`}
+                                        ${isActive ? 'shadow-xl ring-2 ring-white/50 dark:ring-white/10 scale-105' : 'hover:shadow-md'}
                                     `}>
-                                        {getIcon(evt)}
+                                        {getIcon(node)}
                                         <div className="flex flex-col leading-none">
-                                            {evt.player ? (
-                                                <span className={`text-[10px] font-black uppercase tracking-wider truncate transition-all duration-300 ${isActive ? 'max-w-[140px]' : 'max-w-[70px]'}`}>{evt.player}</span>
+                                            {node.player ? (
+                                                <span className={`text-[10px] font-black uppercase tracking-wider truncate max-w-[100px]`}>
+                                                    {node.player}
+                                                </span>
                                             ) : (
-                                                <span className="text-[10px] font-black uppercase tracking-wider">{evt.team === 'A' ? match.teamAName : match.teamBName}</span>
+                                                <span className="text-[10px] font-black uppercase tracking-wider">
+                                                    {node.team === 'A' ? match.teamAName : match.teamBName}
+                                                </span>
                                             )}
-                                            {evt.skill && <span className="text-[8px] opacity-80 uppercase tracking-tight">{evt.description}</span>}
+                                            {/* Skill / Desc */}
+                                            {node.description && <span className="text-[8px] opacity-80 uppercase tracking-tight mt-0.5">{node.description}</span>}
                                         </div>
                                     </div>
+
+                                    {/* Context Info (Time/Score) - Always visible but dimmed if inactive */}
+                                    <motion.div 
+                                        className={`
+                                            flex items-center gap-2 bg-slate-800 text-white text-[9px] font-mono px-2 py-1 rounded-md shadow-md
+                                            ${node.isTop ? 'order-first mb-1' : 'order-last mt-1'}
+                                        `}
+                                        animate={{ opacity: isActive ? 1 : 0.6, scale: isActive ? 1 : 0.95 }}
+                                    >
+                                        <span className="opacity-70">{node.timeLabel}</span>
+                                        <span className="w-px h-2 bg-white/20" />
+                                        <span className="font-bold text-amber-400">{node.scoreSnapshot}</span>
+                                    </motion.div>
                                 </div>
+
                             </motion.div>
                         );
                     })}
-
-                    {/* End Node */}
-                    <div className="flex flex-col items-center gap-2 relative">
-                        <div className="w-3 h-3 rounded-full bg-slate-800 dark:bg-white ring-4 ring-slate-100 dark:ring-slate-800 z-20" />
-                        <span className="text-[10px] font-mono text-slate-400 absolute top-6">END</span>
-                    </div>
                 </motion.div>
             </div>
         </div>

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { 
     Hand, Users, Edit3, User, Crown, Swords, Zap, CheckCircle2, 
     Trophy, Mic, ArrowRight, Volume2, ArrowRightLeft, FileSpreadsheet,
-    Share2, Image, FileText
+    Share2, Image, FileText, RefreshCw, ChevronRight, ArrowUp
 } from 'lucide-react';
 
 // Common interface for all visuals
@@ -133,13 +133,12 @@ const GesturesVisual = ({ color, isPaused }: VisualProps) => {
     );
 };
 
-// --- 3. SETTINGS: Menu Simulation (NEW) ---
+// --- 3. SETTINGS: Menu Simulation ---
 const SettingsConfigVisual = ({ color, isPaused }: VisualProps) => {
     const activeColor = color.replace('text-', 'bg-');
     return (
         <div className="w-full h-full flex items-center justify-center bg-slate-50 dark:bg-white/5">
             <div className="w-48 bg-white dark:bg-black/20 rounded-2xl shadow-xl border border-black/5 dark:border-white/5 p-4 flex flex-col gap-4">
-                {/* Row 1: Toggle */}
                 <div className="flex items-center justify-between">
                     <div className="w-16 h-2 bg-slate-200 dark:bg-white/10 rounded-full" />
                     <div className="w-10 h-6 bg-slate-100 dark:bg-white/5 rounded-full p-1 border border-black/5 relative overflow-hidden">
@@ -150,7 +149,6 @@ const SettingsConfigVisual = ({ color, isPaused }: VisualProps) => {
                         />
                     </div>
                 </div>
-                {/* Row 2: Set Selector */}
                 <div className="flex flex-col gap-2">
                     <div className="w-10 h-2 bg-slate-200 dark:bg-white/10 rounded-full" />
                     <div className="flex gap-2">
@@ -168,7 +166,6 @@ const SettingsConfigVisual = ({ color, isPaused }: VisualProps) => {
                         ))}
                     </div>
                 </div>
-                {/* Row 3: Skeleton */}
                 <div className="flex items-center justify-between opacity-50">
                     <div className="w-20 h-2 bg-slate-200 dark:bg-white/10 rounded-full" />
                     <div className="w-4 h-4 rounded-full bg-slate-200 dark:bg-white/10" />
@@ -178,11 +175,10 @@ const SettingsConfigVisual = ({ color, isPaused }: VisualProps) => {
     );
 };
 
-// --- 4. AUDIO: Speaker with Waves (NEW) ---
+// --- 4. AUDIO: Speaker with Waves ---
 const AudioNarratorVisual = ({ color, isPaused }: VisualProps) => {
     return (
         <div className="w-full h-full flex items-center justify-center bg-slate-50 dark:bg-white/5 overflow-hidden relative">
-            {/* Sound Waves */}
             {[1, 2, 3].map((i) => (
                 <motion.div
                     key={i}
@@ -202,11 +198,8 @@ const AudioNarratorVisual = ({ color, isPaused }: VisualProps) => {
                     }}
                 />
             ))}
-            
-            {/* Center Icon */}
             <div className="z-10 bg-white dark:bg-white/10 p-4 rounded-2xl shadow-xl border border-black/5 dark:border-white/5 relative">
                 <Volume2 size={32} className={color} strokeWidth={2.5} />
-                {/* Note Icon popping out */}
                 <motion.div 
                     className="absolute -top-2 -right-2 text-slate-400"
                     animate={isPaused ? {} : { y: [0, -10, 0], opacity: [0, 1, 0], rotate: [0, 15, 0] }}
@@ -283,39 +276,85 @@ const DragHandVisual = ({ color, isPaused }: VisualProps) => {
     );
 };
 
-// --- 7. SUBSTITUTIONS: Card Swap (NEW) ---
+// --- 7. SUBSTITUTIONS V2: IN & OUT CARDS ---
 const SubstitutionsVisual = ({ color, isPaused }: VisualProps) => {
-    const activeBg = color.replace('text-', 'bg-');
-    const passiveBg = 'bg-slate-200 dark:bg-white/10';
+    // Colors
+    const activeColor = color.replace('text-', 'bg-');
+    
+    // Skeleton Card Component
+    const MiniPlayerCard = ({ type, customClass }: { type: 'in' | 'out', customClass?: string }) => (
+        <div className={`
+            w-24 h-32 rounded-xl border shadow-md flex flex-col items-center justify-center gap-3 relative
+            ${type === 'in' 
+                ? `bg-white dark:bg-slate-800 border-emerald-500/30` 
+                : `bg-white dark:bg-slate-800 border-rose-500/30`
+            }
+            ${customClass}
+        `}>
+            {/* Status Badge */}
+            <div className={`
+                absolute top-2 right-2 text-[8px] font-black px-1.5 py-0.5 rounded
+                ${type === 'in' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}
+            `}>
+                {type === 'in' ? 'IN' : 'OUT'}
+            </div>
+
+            {/* Avatar */}
+            <div className={`
+                w-10 h-10 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500
+                ${type === 'in' ? 'bg-emerald-500/10' : 'bg-rose-500/10'}
+            `}>
+                <User size={20} />
+            </div>
+
+            {/* Text Lines */}
+            <div className="space-y-1.5 w-full px-3 flex flex-col items-center">
+                <div className="h-2 w-12 bg-slate-200 dark:bg-white/10 rounded-full" />
+                <div className="h-1.5 w-8 bg-slate-100 dark:bg-white/5 rounded-full" />
+            </div>
+        </div>
+    );
+
     return (
-        <div className="w-full h-full flex items-center justify-center bg-slate-50 dark:bg-white/5 gap-2 relative">
+        <div className="w-full h-full flex items-center justify-center bg-slate-50 dark:bg-white/5 relative overflow-hidden">
+            
+            {/* --- CARD 1 (OUT - LEAVING) --- */}
+            <motion.div
+                className="absolute z-10"
+                animate={isPaused ? {} : { 
+                    x: [0, -60, -60, 0], 
+                    scale: [1, 0.85, 0.85, 1],
+                    opacity: [1, 0.6, 0.6, 1],
+                    filter: ["grayscale(0%)", "grayscale(100%)", "grayscale(100%)", "grayscale(0%)"]
+                }}
+                transition={{ duration: 3, repeat: Infinity, times: [0, 0.3, 0.8, 1], ease: "easeInOut" }}
+            >
+                <MiniPlayerCard type="out" />
+            </motion.div>
+
+            {/* --- CARD 2 (IN - ENTERING) --- */}
+            <motion.div
+                className="absolute z-20"
+                initial={{ x: 60, scale: 0.8, opacity: 0 }}
+                animate={isPaused ? {} : { 
+                    x: [60, 0, 0, 60], 
+                    scale: [0.8, 1.05, 1.05, 0.8],
+                    opacity: [0, 1, 1, 0]
+                }}
+                transition={{ duration: 3, repeat: Infinity, times: [0, 0.3, 0.8, 1], ease: "easeInOut" }}
+            >
+                <MiniPlayerCard type="in" customClass="ring-4 ring-emerald-500/10 shadow-xl" />
+            </motion.div>
+
+            {/* --- CENTRAL SWAP ICON --- */}
             <motion.div 
-                className="absolute z-0 text-slate-300"
-                animate={isPaused ? {} : { rotate: 180 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute z-30 bg-white dark:bg-slate-700 rounded-full p-2.5 shadow-lg border border-slate-100 dark:border-white/10 text-slate-800 dark:text-white"
+                animate={isPaused ? {} : { rotate: 180, scale: [1, 1.2, 1] }}
+                transition={{ duration: 3, repeat: Infinity, times: [0, 0.3, 1], ease: "easeInOut" }}
             >
-                <ArrowRightLeft size={32} />
+                <RefreshCw size={20} strokeWidth={2.5} />
             </motion.div>
 
-            {/* Player A (Starts Active) */}
-            <motion.div
-                className={`w-20 h-28 rounded-xl shadow-md border border-black/5 flex flex-col items-center justify-center gap-2 z-10`}
-                animate={isPaused ? {} : { x: [0, 50, 50, 0], backgroundColor: [activeBg, passiveBg, passiveBg, activeBg] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            >
-                <User size={20} className="text-white mix-blend-overlay" />
-                <div className="h-1 w-10 bg-white/40 rounded-full" />
-            </motion.div>
-
-            {/* Player B (Starts Bench) */}
-            <motion.div
-                className={`w-20 h-28 rounded-xl shadow-md border border-black/5 flex flex-col items-center justify-center gap-2 z-10`}
-                animate={isPaused ? {} : { x: [0, -50, -50, 0], backgroundColor: [passiveBg, activeBg, activeBg, passiveBg] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            >
-                <User size={20} className="text-white mix-blend-overlay" />
-                <div className="h-1 w-10 bg-white/40 rounded-full" />
-            </motion.div>
         </div>
     );
 };
@@ -373,7 +412,7 @@ const CourtRotationVisual = ({ color, isPaused }: VisualProps) => {
     );
 };
 
-// --- 10. SKILL BALANCE V2: Equalizer Bars (NEW) ---
+// --- 10. SKILL BALANCE V2: Equalizer Bars ---
 const SkillBalanceV2Visual = ({ color, isPaused }: VisualProps) => {
     return (
         <div className="w-full h-full flex items-center justify-center bg-slate-50 dark:bg-white/5 gap-8">
@@ -471,7 +510,7 @@ const HistoryTimelineVisual = ({ color, isPaused }: VisualProps) => {
     );
 };
 
-// --- 14. SCOUT ADVANCED: Random Pips (NEW) ---
+// --- 14. SCOUT ADVANCED: Random Pips ---
 const ScoutAdvancedVisual = ({ color, isPaused }: VisualProps) => {
     return (
         <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-white/5 relative">
@@ -507,7 +546,7 @@ const ScoutAdvancedVisual = ({ color, isPaused }: VisualProps) => {
     );
 };
 
-// --- 15. EXPORT: Document Flyout (NEW) ---
+// --- 15. EXPORT: Document Flyout ---
 const ExportDataVisual = ({ color, isPaused }: VisualProps) => {
     return (
         <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-white/5 relative overflow-hidden">
@@ -613,12 +652,12 @@ export const TutorialVisual = ({ visualId, colorTheme, isPaused }: { visualId: s
     case 'player_profile': return <PlayerProfileVisual {...props} />;
     case 'batch_input': return <BatchInputVisual {...props} />;
     case 'rotations': return <CourtRotationVisual {...props} />;
-    case 'skill_balance': return <SkillBalanceV2Visual {...props} />; // OLD replaced by V2
+    case 'skill_balance': return <SkillBalanceV2Visual {...props} />;
     case 'skill_balance_v2': return <SkillBalanceV2Visual {...props} />;
     case 'history_summary': return <HistorySummaryVisual {...props} />;
     case 'history_analytics': return <HistorySummaryVisual {...props} />;
     case 'history_timeline': return <HistoryTimelineVisual {...props} />;
-    case 'scout_mode': return <ScoutAdvancedVisual {...props} />; // OLD replaced by Advanced
+    case 'scout_mode': return <ScoutAdvancedVisual {...props} />;
     case 'scout_mode_advanced': return <ScoutAdvancedVisual {...props} />;
     case 'settings_config': return <SettingsConfigVisual {...props} />;
     case 'audio_narrator': return <AudioNarratorVisual {...props} />;

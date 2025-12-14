@@ -281,16 +281,6 @@ export const PlayerCard = memo(({
       onRequestProfileEdit(player.id); 
   }, [player.id, onRequestProfileEdit]);
 
-  const handleViewRequest = useCallback((e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (isLinked) {
-          onViewProfile(profile!.id);
-      } else {
-          // If not linked, tap behaves like edit request or does nothing (user should use sync button)
-          // Optionally, shake or show tooltip
-      }
-  }, [isLinked, profile, onViewProfile]);
-
   const handleMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
       e.preventDefault();
@@ -298,13 +288,7 @@ export const PlayerCard = memo(({
   };
 
   const activeRole = profile?.role || player.role || 'none';
-  let RoleIcon = null;
-  let roleColor = "";
-  if (activeRole === 'setter') { RoleIcon = Hand; roleColor = "text-amber-500"; }
-  else if (activeRole === 'hitter') { RoleIcon = Zap; roleColor = "text-rose-500"; }
-  else if (activeRole === 'middle') { RoleIcon = Target; roleColor = "text-indigo-500"; }
-  else if (activeRole === 'libero') { RoleIcon = Shield; roleColor = "text-emerald-500"; }
-
+  
   // Base style for dragged items
   const dragClass = `bg-white dark:bg-slate-800 border-2 border-indigo-500 shadow-2xl z-50 ring-4 ring-indigo-500/20`;
   
@@ -347,7 +331,7 @@ export const PlayerCard = memo(({
   return (
     <div 
         ref={setNodeRef} style={style} {...attributes} {...listeners} data-player-card="true" 
-        className={`group relative flex items-center justify-between rounded-2xl border touch-manipulation py-1.5 px-2.5 min-h-[54px] ${containerClass} ${!player.isFixed && !isMenuActive && activeNumberId !== player.id ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`group relative flex items-center justify-between rounded-2xl border touch-manipulation py-1.5 px-2.5 min-h-[50px] ${containerClass} ${!player.isFixed && !isMenuActive && activeNumberId !== player.id ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
         <div className="flex items-center gap-2 flex-shrink-0 self-center">
             <EditableNumber 
@@ -359,53 +343,15 @@ export const PlayerCard = memo(({
             />
         </div>
         
-        {/* Interaction Split: Name is one zone, Avatar is another */}
+        {/* NAME ZONE: Maximize Width */}
         <div className="flex flex-1 items-center gap-2 min-w-0 px-2 h-full">
-            
-            {/* AVATAR ZONE: Triggers View Profile */}
-            <div 
-                className={`flex items-center justify-center p-1 -ml-1 rounded-lg transition-transform active:scale-90 ${isLinked ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5' : ''}`}
-                onClick={handleViewRequest}
-                onPointerDown={e => e.stopPropagation()} // Isolate from drag
-            >
-                {/* Visual Logic: Show Avatar if Linked, else show Role Icon if assigned, else Spacer */}
-                {isLinked && profile?.avatar ? (
-                    <span className="text-sm grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all flex-shrink-0">{profile.avatar}</span>
-                ) : (
-                    RoleIcon ? <RoleIcon size={14} className={`${roleColor} flex-shrink-0`} strokeWidth={2.5} /> : <div className="w-4" />
-                )}
-            </div>
-            
-            {/* NAME ZONE: Triggers Edit */}
             <div className="flex flex-col min-w-0 flex-1">
                 <EditableTitle 
                     name={player.name} 
                     onSave={(v) => onUpdatePlayer(player.id, { name: v })} 
                     className={`text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight`} 
                 />
-                
-                {/* CAREER STATS PREVIEW - Only show if Linked */}
-                {isLinked && profile?.stats && profile.stats.matchesPlayed > 0 && (
-                    <div className="flex items-center gap-2 mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                        {profile.stats.totalPoints > 0 && (
-                            <div className="flex items-center gap-0.5 text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 rounded">
-                                <Trophy size={8} /> {profile.stats.totalPoints}
-                            </div>
-                        )}
-                        {profile.stats.attacks > 0 && (
-                            <div className="flex items-center gap-0.5 text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 rounded">
-                                <Swords size={8} /> {profile.stats.attacks}
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
-            
-            {/* Role Icon (Secondary position if avatar is present and Linked) */}
-            {isLinked && profile?.avatar && RoleIcon && (
-                <RoleIcon size={12} className={`${roleColor} flex-shrink-0 mr-1`} strokeWidth={2.5} />
-            )}
-            
             {player.isFixed && <Pin size={12} className="text-amber-500 flex-shrink-0" fill="currentColor" />}
         </div>
         
