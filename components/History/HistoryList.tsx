@@ -49,7 +49,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, i
                 className={`
                     w-full flex items-center justify-between
                     bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 
-                    rounded-2xl pl-4 pr-3 py-2.5 
+                    rounded-2xl pl-4 pr-3 py-3 
                     text-xs font-bold uppercase tracking-wider 
                     text-slate-600 dark:text-slate-300 
                     hover:bg-slate-50 dark:hover:bg-white/10 hover:border-black/10 dark:hover:border-white/20
@@ -120,7 +120,7 @@ const ExportMenu = ({ onExportJSON, onExportCSV }: { onExportJSON: () => void, o
         <div className="relative" ref={containerRef}>
             <button 
                 onClick={() => setIsOpen(!isOpen)} 
-                className={`p-2.5 rounded-2xl border border-black/5 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-white hover:bg-indigo-50 dark:hover:bg-white/10 transition-colors ${isOpen ? 'bg-indigo-50 dark:bg-white/10 text-indigo-500' : 'bg-white dark:bg-white/5'}`} 
+                className={`p-3 rounded-2xl border border-black/5 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-white hover:bg-indigo-50 dark:hover:bg-white/10 transition-colors ${isOpen ? 'bg-indigo-50 dark:bg-white/10 text-indigo-500' : 'bg-white dark:bg-white/5'}`} 
             >
                 <Upload size={18} /> 
             </button>
@@ -171,33 +171,34 @@ const HistoryCard: React.FC<{
     const hexB = getHexFromColor(match.teamBRoster?.color || 'rose');
 
     return (
-        <div className="pb-3 px-1"> 
+        <div className="pb-4 px-1"> 
             <motion.div 
                 layout
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="group relative rounded-2xl bg-white dark:bg-white/[0.03] backdrop-blur-md border border-black/5 dark:border-white/5 overflow-hidden shadow-sm hover:shadow-md transition-all"
+                className="group relative rounded-[1.5rem] bg-white dark:bg-white/[0.03] backdrop-blur-md shadow-sm hover:shadow-lg hover:bg-white/80 dark:hover:bg-white/[0.05] transition-all border border-transparent"
             >
+                {/* Subtle Gradient Backing */}
                 {isWinnerA && (
                     <div 
-                        className="absolute inset-0 opacity-[0.03] pointer-events-none transition-colors duration-500"
-                        style={{ background: `linear-gradient(90deg, ${hexA}, transparent)` }}
+                        className="absolute inset-0 opacity-[0.02] pointer-events-none transition-colors duration-500 rounded-[1.5rem]"
+                        style={{ background: `linear-gradient(135deg, ${hexA}, transparent)` }}
                     />
                 )}
                 {isWinnerB && (
                     <div 
-                        className="absolute inset-0 opacity-[0.03] pointer-events-none transition-colors duration-500"
-                        style={{ background: `linear-gradient(-90deg, ${hexB}, transparent)` }}
+                        className="absolute inset-0 opacity-[0.02] pointer-events-none transition-colors duration-500 rounded-[1.5rem]"
+                        style={{ background: `linear-gradient(135deg, ${hexB}, transparent)` }}
                     />
                 )}
 
                 <div 
-                    className="relative z-10 p-4 sm:p-5 cursor-pointer flex flex-col gap-4"
+                    className="relative z-10 p-5 sm:p-6 cursor-pointer flex flex-col gap-5"
                     onClick={onToggle}
                 >
                     <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                        <div className="flex items-center gap-2">
-                            <span className="flex items-center gap-1"><Calendar size={12} /> {date}</span>
+                        <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-1.5"><Calendar size={12} /> {date}</span>
                             <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
                             <span>{time}</span>
                         </div>
@@ -206,26 +207,26 @@ const HistoryCard: React.FC<{
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 sm:gap-4 w-full">
+                    <div className="flex items-center justify-between gap-2 sm:gap-6 w-full">
                         
-                        <div className={`flex-1 min-w-0 flex items-center justify-end gap-2 text-right ${isWinnerA ? 'opacity-100' : 'opacity-60 grayscale-[0.5]'}`}>
-                            <span className={`text-sm sm:text-base leading-tight break-words line-clamp-2 ${isWinnerA ? `font-black ${themeA.text} ${themeA.textDark}` : 'font-medium text-slate-600 dark:text-slate-400'}`}>
+                        <div className={`flex-1 min-w-0 flex items-center justify-end gap-3 text-right ${isWinnerA ? 'opacity-100' : 'opacity-60 grayscale-[0.3]'}`}>
+                            <span className={`text-sm sm:text-lg leading-tight break-words line-clamp-2 ${isWinnerA ? `font-black ${themeA.text} ${themeA.textDark}` : 'font-bold text-slate-600 dark:text-slate-400'}`}>
                                 {match.teamAName}
                             </span>
-                            {isWinnerA && <Crown size={14} className={`${themeA.crown} flex-shrink-0`} fill="currentColor" />}
+                            {isWinnerA && <Crown size={16} className={`${themeA.crown} flex-shrink-0 drop-shadow-sm`} fill="currentColor" />}
                         </div>
 
-                        <div className="flex-shrink-0 flex flex-col items-center justify-center px-3 py-1 bg-slate-100/50 dark:bg-black/20 rounded-xl border border-black/5 dark:border-white/5 min-w-[60px] sm:min-w-[80px]">
-                            <div className="flex items-center gap-1 font-inter text-lg sm:text-xl font-black tabular-nums leading-none">
+                        <div className="flex-shrink-0 flex flex-col items-center justify-center px-4 py-1.5 bg-slate-100/50 dark:bg-black/20 rounded-2xl min-w-[70px] sm:min-w-[90px]">
+                            <div className="flex items-center gap-1.5 font-inter text-xl sm:text-2xl font-black tabular-nums leading-none">
                                 <span className={isWinnerA ? `${themeA.text} ${themeA.textDark}` : 'text-slate-400'}>{match.setsA}</span>
                                 <span className="text-slate-300 dark:text-slate-600 text-sm">:</span>
                                 <span className={isWinnerB ? `${themeB.text} ${themeB.textDark}` : 'text-slate-400'}>{match.setsB}</span>
                             </div>
                         </div>
 
-                        <div className={`flex-1 min-w-0 flex items-center justify-start gap-2 text-left ${isWinnerB ? 'opacity-100' : 'opacity-60 grayscale-[0.5]'}`}>
-                            {isWinnerB && <Crown size={14} className={`${themeB.crown} flex-shrink-0`} fill="currentColor" />}
-                            <span className={`text-sm sm:text-base leading-tight break-words line-clamp-2 ${isWinnerB ? `font-black ${themeB.text} ${themeB.textDark}` : 'font-medium text-slate-600 dark:text-slate-400'}`}>
+                        <div className={`flex-1 min-w-0 flex items-center justify-start gap-3 text-left ${isWinnerB ? 'opacity-100' : 'opacity-60 grayscale-[0.3]'}`}>
+                            {isWinnerB && <Crown size={16} className={`${themeB.crown} flex-shrink-0 drop-shadow-sm`} fill="currentColor" />}
+                            <span className={`text-sm sm:text-lg leading-tight break-words line-clamp-2 ${isWinnerB ? `font-black ${themeB.text} ${themeB.textDark}` : 'font-bold text-slate-600 dark:text-slate-400'}`}>
                                 {match.teamBName}
                             </span>
                         </div>
@@ -233,7 +234,7 @@ const HistoryCard: React.FC<{
                     </div>
 
                     <div className="flex justify-center text-slate-300 dark:text-slate-700 -mt-2">
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </div>
                 </div>
 
@@ -245,18 +246,18 @@ const HistoryCard: React.FC<{
                             exit={{ height: 0, opacity: 0 }}
                             className="relative z-10 border-t border-black/5 dark:border-white/5 bg-slate-50/50 dark:bg-black/10"
                         >
-                            <div className="p-4 sm:p-5 flex flex-col items-center space-y-5">
+                            <div className="p-5 sm:p-6 flex flex-col items-center space-y-6">
                                 
-                                <div className="w-full overflow-x-auto pb-1 no-scrollbar flex justify-center">
-                                    <div className="flex gap-2">
+                                <div className="w-full overflow-x-auto pb-2 no-scrollbar flex justify-center">
+                                    <div className="flex gap-3">
                                         {match.sets.map((set, idx) => {
                                             const isSetWinnerA = set.winner === 'A';
                                             const setTheme = isSetWinnerA ? themeA : themeB;
                                             return (
                                                 <div key={idx} className="flex flex-col items-center flex-shrink-0">
-                                                    <span className="text-[9px] font-bold text-slate-300 uppercase mb-1">{t('history.setLabel', {setNumber: set.setNumber})}</span>
+                                                    <span className="text-[9px] font-bold text-slate-300 uppercase mb-1.5">{t('history.setLabel', {setNumber: set.setNumber})}</span>
                                                     <div className={`
-                                                        min-w-[3rem] text-center px-2 py-1.5 rounded-lg text-xs font-bold border backdrop-blur-sm
+                                                        min-w-[3.5rem] text-center px-2 py-2 rounded-xl text-xs font-black border backdrop-blur-sm shadow-sm
                                                         ${setTheme.bg} ${setTheme.text} ${setTheme.textDark} ${setTheme.border}
                                                     `}>
                                                         {set.scoreA}-{set.scoreB}
@@ -267,20 +268,20 @@ const HistoryCard: React.FC<{
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <div className="flex items-center gap-4 w-full sm:w-auto">
                                     <Button 
                                         onClick={(e) => { e.stopPropagation(); onAnalyze(); }}
-                                        className="flex-1 sm:flex-none bg-slate-800 text-white hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-                                        size="sm"
+                                        className="flex-1 sm:flex-none bg-slate-800 text-white hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 shadow-lg"
+                                        size="md"
                                     >
-                                        <BarChart2 size={14} /> Analysis
+                                        <BarChart2 size={16} /> Analysis
                                     </Button>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); onDelete(match.id); }}
-                                        className="p-2.5 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all border border-rose-500/20"
+                                        className="p-3.5 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all border border-rose-500/20"
                                         title={t('historyList.delete')}
                                     >
-                                        <Trash2 size={16} />
+                                        <Trash2 size={18} />
                                     </button>
                                 </div>
                             </div>
@@ -405,46 +406,51 @@ export const HistoryList: React.FC = () => {
                 <TeamStatsModal isOpen={showStats} onClose={() => setShowStats(false)} />
             </Suspense>
 
-            <div className="sticky top-0 z-30 mb-6 -mx-1 px-1">
-                <div className="bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-2xl p-3 shadow-lg shadow-black/5 dark:shadow-black/20">
-                    <div className="flex gap-2 mb-2">
+            <motion.div 
+                className="sticky top-0 z-30 mb-6 -mx-1 px-1"
+                initial={{ y: -10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/40 dark:border-white/5 rounded-3xl p-4 shadow-xl shadow-black/5 dark:shadow-black/20 ring-1 ring-black/5 dark:ring-white/5">
+                    <div className="flex gap-3 mb-3">
                         <div className="relative flex-1 group">
-                            <div className="absolute inset-0 bg-white dark:bg-white/5 rounded-xl transition-all group-focus-within:ring-2 group-focus-within:ring-indigo-500/30"></div>
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <div className="absolute inset-0 bg-slate-100 dark:bg-white/5 rounded-2xl transition-all group-focus-within:ring-2 group-focus-within:ring-indigo-500/30"></div>
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input 
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder={t('historyList.searchPlaceholder')}
-                                className="relative w-full bg-transparent border border-black/5 dark:border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-800 dark:text-white focus:outline-none placeholder:text-slate-400"
+                                className="relative w-full bg-transparent border-none rounded-2xl pl-11 pr-4 py-3 text-sm font-medium text-slate-800 dark:text-white focus:outline-none placeholder:text-slate-400"
                             />
                         </div>
                         
-                        <div className="flex gap-1">
-                            <button onClick={() => setShowStats(true)} className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors" title="Aggregated Stats">
-                                <PieChart size={18} />
+                        <div className="flex gap-2">
+                            <button onClick={() => setShowStats(true)} className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors shadow-sm" title="Aggregated Stats">
+                                <PieChart size={20} />
                             </button>
                             
                             <ExportMenu onExportJSON={handleExportJSON} onExportCSV={handleExportCSV} />
                             
-                            <button onClick={handleImportClick} className="p-2.5 rounded-2xl bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-white hover:bg-indigo-50 dark:hover:bg-white/10 transition-colors" title={t('historyList.import')}>
-                                <Download size={18} />
+                            <button onClick={handleImportClick} className="p-3 rounded-2xl bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-white hover:bg-indigo-50 dark:hover:bg-white/10 transition-colors shadow-sm" title={t('historyList.import')}>
+                                <Download size={20} />
                             </button>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 relative z-20">
+                    <div className="grid grid-cols-2 gap-3 relative z-20">
                         <CustomSelect 
                             value={filterType}
                             onChange={(val) => setFilterType(val as FilterType)}
                             options={filterOptions}
-                            icon={<Filter size={14} />}
+                            icon={<Filter size={16} />}
                             align="left"
                         />
                         <CustomSelect 
                             value={sortOrder}
                             onChange={(val) => setSortOrder(val as SortType)}
                             options={sortOptions}
-                            icon={<SortDesc size={14} />}
+                            icon={<SortDesc size={16} />}
                             align="right"
                         />
                     </div>
@@ -453,24 +459,29 @@ export const HistoryList: React.FC = () => {
                         {importMsg && (
                             <motion.div 
                                 initial={{ opacity: 0, height: 0, marginTop: 0 }} 
-                                animate={{ opacity: 1, height: 'auto', marginTop: 8 }}
+                                animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
                                 exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                                className={`text-xs px-3 py-2 rounded-xl font-bold flex items-center gap-2 ${importMsg.type === 'success' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-rose-500/20 text-rose-600'}`}
+                                className={`text-xs px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 ${importMsg.type === 'success' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-rose-500/20 text-rose-600'}`}
                             >
-                                <AlertCircle size={14} /> {importMsg.text}
+                                <AlertCircle size={16} /> {importMsg.text}
                             </motion.div>
                         )}
                     </AnimatePresence>
                 </div>
-            </div>
+            </motion.div>
 
-            <div className="flex-1 min-h-0">
+            <motion.div 
+                className="flex-1 min-h-0"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2, duration: 0.4 }}
+            >
                 {filteredMatches.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-slate-400 opacity-60">
-                        <div className="p-4 bg-slate-200 dark:bg-white/5 rounded-full mb-3">
-                            <Clock size={32} strokeWidth={1.5} className="opacity-50" />
+                    <div className="flex flex-col items-center justify-center py-16 text-slate-400 opacity-60">
+                        <div className="p-5 bg-slate-100 dark:bg-white/5 rounded-full mb-4">
+                            <Clock size={40} strokeWidth={1.5} className="opacity-50" />
                         </div>
-                        <p className="text-sm font-medium">{t('historyList.empty')}</p>
+                        <p className="text-base font-medium">{t('historyList.empty')}</p>
                     </div>
                 ) : (
                     <Virtuoso 
@@ -490,7 +501,7 @@ export const HistoryList: React.FC = () => {
                         )}
                     />
                 )}
-            </div>
+            </motion.div>
         </div>
     );
 };

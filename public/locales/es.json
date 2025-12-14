@@ -1,4 +1,3 @@
-
 {
   "app": {
     "loading": "Cargando..."
@@ -338,7 +337,7 @@
     "back": "Volver",
     "skills": {
       "attack": "Ataque",
-      "block": "Bloqueo",
+      "block": "Bloqueio",
       "ace": "Ace",
       "opponent_error": "Error Rival"
     },
@@ -448,38 +447,78 @@
     "start": "Iniciar",
     "welcome": {
       "title": "VolleyScore Pro",
-      "desc": "Marcador profesional.",
+      "desc": "El compañero definitivo. Gestos, Voz y Estadísticas Profesionales.",
       "optIn": "Saltar si deseas."
     },
     "gestures": {
-      "title": "Gestos",
-      "desc": "Toca para Add. Desliza para Deshacer."
+      "title": "Gestos Fluidos",
+      "desc": "Toca en el lado de un equipo para sumar (+1). Desliza hacia ABAJO para corregir (-1)."
+    },
+    "main": {
+      "config": {
+        "title": "Configuración",
+        "desc": "Elige 'Indoor' o 'Playa' en Ajustes. Configura sets (1/3/5) y reglas de tie-break antes de iniciar."
+      },
+      "narrator": {
+        "title": "Narrador de Audio",
+        "desc": "La app habla el marcador, servidor y momentos críticos como 'Match Point' automáticamente."
+      }
     },
     "features": {
-      "title": "Control",
-      "desc": "Rotación, Subs y Stats."
+      "title": "Control Total",
+      "desc": "Gestiona tiempos, lados y accede al Gestor de Equipos desde el menú flotante."
+    },
+    "voice": {
+        "title": "Comandos de Voz",
+        "desc": "Toca el micro. Di 'Punto Casa', 'Tiempo' o 'Cambio de Saque' para anotar sin manos."
     },
     "manager": {
-        "welcome": "Plantillas",
-        "welcomeDesc": "Gestiona Equipos y Colas.",
-        "roster": "Equipo y Banca",
-        "rosterDesc": "6 en Cancha. Activa Banca para reservas.",
-        "queue": "Cola",
-        "queueDesc": "Lista de espera.",
-        "rotation": "Rotación",
-        "rotationDesc": "Estándar o Balanceada."
+        "intro": {
+            "title": "Gestor de Equipos",
+            "desc": "Tu centro de mando. Organiza titulares, banca y rotaciones."
+        },
+        "structure": {
+            "title": "Arrastrar y Soltar",
+            "desc": "Arrastra jugadores entre Cancha, Banca y Cola. Los 6 de arriba juegan. El resto forma la Banca."
+        },
+        "subs": {
+            "title": "Sustituciones",
+            "desc": "Toca el icono de 'Cambio'. Toca un jugador en Cancha (SALE), luego uno de Banca (ENTRA) para cambiar."
+        },
+        "profiles": {
+            "title": "Perfiles de Jugador",
+            "desc": "Vincula jugadores a Perfiles para rastrear estadísticas de carrera (Victorias, Kills, Aces)."
+        },
+        "rotation": {
+            "title": "Rotación Auto",
+            "desc": "Usa 'Modo Estándar' para Ganador-Queda o 'Modo Balanceado' para mezclar equipos por habilidad."
+        },
+        "balance": {
+            "title": "Balance de Skill",
+            "desc": "Asigna un Nivel (1-10) a los jugadores. La IA genera equipos justos automáticamente."
+        },
+        "batch": {
+            "title": "Entrada por Lote",
+            "desc": "Pega una lista de nombres en la pestaña 'Lote'. Formato: 'Nombre 8' para fijar nivel de habilidad."
+        }
     },
     "history": {
-        "welcome": "Historial",
-        "welcomeDesc": "Revisa y Analiza.",
-        "timeline": "Línea Tiempo",
-        "timelineDesc": "Momentos clave.",
+        "summary": {
+            "title": "Historial de Partidos",
+            "desc": "Ver marcadores y duración. Toca cualquier partido para ver el reporte analítico completo."
+        },
+        "timeline": {
+            "title": "Gráfico de Momentum",
+            "desc": "Visualiza el flujo del juego. Mira exactamente cuándo cambió el impulso en la línea de tiempo."
+        },
         "stats": "Modo Scout",
-        "statsDesc": "Activa para Kills/Blocks.",
-        "statsFeedback": "Feedback visual confirma estadística guardada.",
-        "feedback": "Confirmación",
-        "export": "Exportar",
-        "exportDesc": "Imagen o CSV."
+        "statsDesc": "Activa en Ajustes para registrar acciones específicas (Ataque, Bloqueo, Ace) en cada punto.",
+        "statsFeedback": "Al anotar, selecciona el Jugador y Habilidad. El sistema actualiza sus estadísticas al instante.",
+        "feedback": "Análisis",
+        "export": {
+            "title": "Exportar Datos",
+            "desc": "Comparte resultados como imagen social o exporta datos CSV/JSON para análisis."
+        }
     },
     "install": {
       "title": "Instalar",

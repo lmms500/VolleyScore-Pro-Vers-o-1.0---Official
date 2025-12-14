@@ -48,19 +48,19 @@ const PlayerCardBlock = memo(({
         if (isOut) {
             // Leaving: Red/Rose accents
             activeBorder = 'border-rose-500 dark:border-rose-400';
-            activeBg = 'bg-rose-500/20 dark:bg-rose-500/30';
+            activeBg = 'bg-rose-500/10 dark:bg-rose-500/20';
             activeRing = 'ring-1 ring-rose-500';
         } else {
             // Entering: Emerald/Green accents
             activeBorder = 'border-emerald-500 dark:border-emerald-400';
-            activeBg = 'bg-emerald-500/20 dark:bg-emerald-500/30';
+            activeBg = 'bg-emerald-500/10 dark:bg-emerald-500/20';
             activeRing = 'ring-1 ring-emerald-500';
         }
     }
 
     // Passive State
     const passiveClass = `
-        bg-white/50 dark:bg-white/[0.03] 
+        bg-white/60 dark:bg-white/[0.04] 
         border-slate-200 dark:border-white/10 
         hover:border-slate-300 dark:hover:border-white/20
     `;
@@ -73,8 +73,8 @@ const PlayerCardBlock = memo(({
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelect(player.id, type)}
             className={`
-                relative flex items-center justify-between p-2 rounded-xl border transition-all duration-300 
-                w-full h-12 overflow-hidden group isolate
+                relative flex items-center justify-between p-3 rounded-2xl border transition-all duration-300 
+                w-full h-14 overflow-hidden group isolate
                 ${isSelected || isPending
                     ? `${activeBg} ${activeBorder} ${activeRing} z-10` 
                     : `${passiveClass} hover:bg-white/80 dark:hover:bg-white/10`
@@ -87,27 +87,27 @@ const PlayerCardBlock = memo(({
                 <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${teamTint}`} />
             )}
 
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
                 {/* Number Badge */}
                 <div className={`
-                    w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black
+                    w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black
                     ${isSelected 
                         ? (isOut ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white') 
-                        : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'}
+                        : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400'}
                 `}>
-                    {player.number || <Hash size={10} />}
+                    {player.number || <Hash size={12} />}
                 </div>
 
                 {/* Name */}
-                <span className={`text-xs font-bold uppercase tracking-tight truncate max-w-[90px] ${isSelected ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400'}`}>
+                <span className={`text-sm font-bold uppercase tracking-tight truncate max-w-[100px] ${isSelected ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
                     {player.name}
                 </span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
                 {player.isFixed && (
                     <div className="text-amber-500 opacity-60">
-                        <User size={10} fill="currentColor" />
+                        <User size={12} fill="currentColor" />
                     </div>
                 )}
 
@@ -117,7 +117,7 @@ const PlayerCardBlock = memo(({
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         className={`
-                            w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm
+                            w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm
                             ${isOut ? 'bg-rose-600' : 'bg-emerald-600'}
                         `}
                     >
@@ -218,32 +218,32 @@ export const SubstitutionModal: React.FC<SubstitutionModalProps> = ({
         isOpen={isOpen} 
         onClose={onClose} 
         title={t('substitution.title')} 
-        maxWidth="max-w-md"
+        maxWidth="max-w-xl"
         backdropClassName="bg-black/30 dark:bg-black/60 backdrop-blur-sm"
     >
         <div className="flex flex-col pb-safe-bottom h-full max-h-[80vh]">
             
             {/* --- TEAM HEADER --- */}
-            <div className="flex flex-col items-center justify-center pt-2 pb-4 border-b border-dashed border-slate-200 dark:border-white/10 mb-2">
-                <h2 className={`text-xl font-black uppercase tracking-tight leading-none ${theme.text} ${theme.textDark} drop-shadow-sm`}>
+            <div className="flex flex-col items-center justify-center pt-2 pb-6 border-b border-dashed border-slate-200 dark:border-white/10 mb-4">
+                <h2 className={`text-2xl font-black uppercase tracking-tight leading-none ${theme.text} ${theme.textDark} drop-shadow-sm`}>
                     {team.name}
                 </h2>
-                <div className={`h-1 w-12 rounded-full mt-2 ${theme.halo} opacity-80`} />
-                <p className="text-[10px] text-slate-400 mt-2 font-medium">
+                <div className={`h-1.5 w-16 rounded-full mt-3 ${theme.halo} opacity-80`} />
+                <p className="text-xs text-slate-400 mt-3 font-medium">
                     {t('substitution.subtitle')}
                 </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-1 py-2 grid grid-cols-2 gap-4">
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-1 py-2 grid grid-cols-2 gap-6">
                 
                 {/* COLUMN 1: ON COURT (LEAVING) */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 px-1 mb-1">
-                        <div className="p-1 rounded bg-rose-500/10 text-rose-500"><ArrowRight size={12} strokeWidth={3} /></div>
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('substitution.outCourt')}</h3>
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2 px-1 mb-2">
+                        <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500"><ArrowRight size={14} strokeWidth={3} /></div>
+                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{t('substitution.outCourt')}</h3>
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3">
                         {courtPlayers.map(p => (
                             <PlayerCardBlock 
                                 key={p.id} 
@@ -257,19 +257,19 @@ export const SubstitutionModal: React.FC<SubstitutionModalProps> = ({
                             />
                         ))}
                         {courtPlayers.length === 0 && (
-                            <div className="py-6 text-center text-[10px] text-slate-400 italic bg-slate-50 dark:bg-white/5 rounded-xl border border-dashed border-slate-200 dark:border-white/10">{t('substitution.emptyCourt')}</div>
+                            <div className="py-8 text-center text-xs text-slate-400 italic bg-slate-50 dark:bg-white/5 rounded-2xl border border-dashed border-slate-200 dark:border-white/10">{t('substitution.emptyCourt')}</div>
                         )}
                     </div>
                 </div>
 
                 {/* COLUMN 2: BENCH (ENTERING) */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 px-1 mb-1">
-                        <div className="p-1 rounded bg-emerald-500/10 text-emerald-500"><ArrowLeft size={12} strokeWidth={3} /></div>
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('substitution.inBench')}</h3>
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2 px-1 mb-2">
+                        <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500"><ArrowLeft size={14} strokeWidth={3} /></div>
+                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{t('substitution.inBench')}</h3>
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3">
                         {benchPlayers.map(p => (
                             <PlayerCardBlock 
                                 key={p.id} 
@@ -283,8 +283,8 @@ export const SubstitutionModal: React.FC<SubstitutionModalProps> = ({
                             />
                         ))}
                         {benchPlayers.length === 0 && (
-                            <div className="py-6 flex flex-col items-center justify-center text-slate-400/60 gap-1 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-xl bg-slate-50/50 dark:bg-white/[0.01]">
-                                <User size={16} />
+                            <div className="py-8 flex flex-col items-center justify-center text-slate-400/60 gap-2 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-2xl bg-slate-50/50 dark:bg-white/[0.01]">
+                                <User size={20} />
                                 <span className="text-[10px] font-bold uppercase tracking-wider">{t('substitution.emptyBench')}</span>
                             </div>
                         )}
@@ -293,20 +293,20 @@ export const SubstitutionModal: React.FC<SubstitutionModalProps> = ({
             </div>
 
             {/* FOOTER ACTION */}
-            <div className="pt-4 mt-2 border-t border-black/5 dark:border-white/5">
+            <div className="pt-6 mt-4 border-t border-black/5 dark:border-white/5">
                 <Button 
                     onClick={handleConfirm} 
                     disabled={pairs.length === 0}
                     className={`
-                        w-full py-4 text-xs font-black tracking-[0.2em] uppercase rounded-2xl shadow-xl transition-all duration-300
+                        w-full py-5 text-sm font-black tracking-[0.2em] uppercase rounded-2xl shadow-xl transition-all duration-300
                         ${pairs.length > 0 
                             ? `${theme.halo.replace('bg-', 'bg-')} text-white shadow-lg scale-[1.02] hover:scale-[1.03]` 
                             : 'bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-600 border border-slate-200 dark:border-white/5 cursor-not-allowed'}
                     `}
-                    size="md"
+                    size="lg"
                 >
                     <div className="flex items-center justify-center gap-3">
-                        <RefreshCw size={16} /> 
+                        <RefreshCw size={18} /> 
                         <span>
                             {pairs.length > 0 ? t('substitution.confirm', {count: pairs.length}) : t('substitution.select')}
                         </span>

@@ -1,6 +1,6 @@
 {
   "name": "Copy of VolleyScore Pro Versão 1.0 - Official",
-  "description": "Advanced Volleyball Scoreboard & Team Management PWA with rotation logic, sudden death rules, and neo-glass UI.",
+  "description": "VolleyScore Pro 2 is the definitive volleyball companion. It combines a high-performance gesture-based scoreboard with deep team management. Features: Smart Rotation tracking (Standard & Balanced), customizable rules (Indoor/Beach, Sudden Death), career player statistics with 'Scout Mode', real-time voice commands, and rich match history with momentum graphs.",
   "version": "2.0.6",
   "requestFramePermissions": [
     "microphone"

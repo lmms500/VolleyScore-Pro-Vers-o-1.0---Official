@@ -5,6 +5,8 @@ import { useHistoryStore } from '../../stores/historyStore';
 import { Trophy, Activity, Target, TrendingUp, Search } from 'lucide-react';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { Team } from '../../types';
+import { motion } from 'framer-motion';
+import { staggerContainer, staggerItem } from '../../utils/animations';
 
 interface TeamStatsModalProps {
   isOpen: boolean;
@@ -124,7 +126,12 @@ export const TeamStatsModal: React.FC<TeamStatsModalProps> = ({ isOpen, onClose 
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-4 px-1">
+                <motion.div 
+                    className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-4 px-1"
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate="visible"
+                >
                     {filteredStats.length === 0 ? (
                         <div className="text-center py-12 text-slate-400 italic text-sm flex flex-col items-center gap-2">
                             <Trophy size={32} className="opacity-20" />
@@ -132,7 +139,7 @@ export const TeamStatsModal: React.FC<TeamStatsModalProps> = ({ isOpen, onClose 
                         </div>
                     ) : (
                         filteredStats.map((team) => (
-                            <div key={team.id} className="bg-white dark:bg-white/5 rounded-2xl p-4 border border-black/5 dark:border-white/5 shadow-sm">
+                            <motion.div key={team.id} variants={staggerItem} className="bg-white dark:bg-white/5 rounded-2xl p-4 border border-black/5 dark:border-white/5 shadow-sm">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight truncate max-w-[70%]">{team.name}</h3>
                                     <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${team.winRate >= 50 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
@@ -170,10 +177,10 @@ export const TeamStatsModal: React.FC<TeamStatsModalProps> = ({ isOpen, onClose 
                                         colorClass="bg-rose-500 text-rose-500" 
                                     />
                                 </div>
-                            </div>
+                            </motion.div>
                         ))
                     )}
-                </div>
+                </motion.div>
             </div>
         </Modal>
     );

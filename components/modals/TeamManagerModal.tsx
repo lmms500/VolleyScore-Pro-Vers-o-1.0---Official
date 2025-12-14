@@ -4,7 +4,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Team, Player, RotationMode, PlayerProfile, TeamColor, ActionLog, PlayerRole } from '../../types';
 import { calculateTeamStrength } from '../../utils/balanceUtils';
-import { Pin, Trash2, Shuffle, Edit2, Plus, Undo2, Ban, Star, Save, RefreshCw, AlertCircle, User, Upload, List, Hash, Users, Layers, Search, X, ListFilter, ArrowDownAZ, ArrowDown01, ArrowUpWideNarrow, LogOut, ChevronRight, ChevronLeft, Armchair, ArrowRightLeft, ArrowUp, MoreVertical, Unlock, RefreshCcw, PlusCircle, ArrowUpCircle, Activity, ArrowDown, Check, ChevronsUp, ChevronUp, ChevronDown, ListOrdered, Hand, Zap, Target, Shield, Info, Image as ImageIcon } from 'lucide-react';
+import { Pin, Trash2, Shuffle, Edit2, Plus, Undo2, Ban, Star, Save, RefreshCw, AlertCircle, User, Upload, List, Hash, Users, Layers, Search, X, ListFilter, ArrowDownAZ, ArrowDown01, ArrowUpWideNarrow, LogOut, ChevronRight, ChevronLeft, Armchair, ArrowRightLeft, ArrowUp, MoreVertical, Unlock, RefreshCcw, PlusCircle, ArrowUpCircle, Activity, ArrowDown, Check, ChevronsUp, ChevronUp, ChevronDown, ListOrdered, Hand, Zap, Target, Shield, Info, Image as ImageIcon, Lock, Palette } from 'lucide-react';
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors, KeyboardSensor, TouchSensor, useDndMonitor, useDroppable, MouseSensor } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { createPortal } from 'react-dom';
@@ -97,23 +97,73 @@ const SCROLL_EVENT = 'team-manager-scroll';
 const dispatchScrollEvent = () => { if (typeof window !== 'undefined') window.dispatchEvent(new Event(SCROLL_EVENT)); };
 
 const ColorPicker = memo(({ selected, onChange, usedColors }: { selected: TeamColor, onChange: (c: TeamColor) => void, usedColors: Set<string> }) => {
+    const sortedPalette = useMemo(() => {
+        return [...COLOR_KEYS].sort((a, b) => {
+            if (a === selected) return -1;
+            if (b === selected) return 1;
+            const isUsedA = usedColors.has(a);
+            const isUsedB = usedColors.has(b);
+            if (isUsedA && !isUsedB) return 1;
+            if (!isUsedA && isUsedB) return -1;
+            return a.localeCompare(b);
+        });
+    }, [selected, usedColors]);
+
     return (
-        <div className="w-full relative z-20 overflow-x-auto overflow-y-visible no-scrollbar touch-pan-x flex items-center py-3" onPointerDown={(e) => e.stopPropagation()} style={{ overscrollBehaviorX: 'contain', maskImage: 'linear-gradient(to right, black 80%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
-            <div className="flex items-center gap-3 px-4 w-max">
-                {COLOR_KEYS.map(color => {
-                     const isSelected = selected === color;
-                     const isTaken = usedColors.has(color) && !isSelected;
-                     const theme = TEAM_COLORS[color];
-                     return (
-                         <button
-                            key={color} onClick={(e) => { e.stopPropagation(); !isTaken && onChange(color); }} onPointerDown={(e) => e.stopPropagation()} disabled={isTaken}
-                            className={`relative w-8 h-8 rounded-full transition-all duration-300 flex items-center justify-center shrink-0 ${theme.solid} ${isSelected ? 'ring-4 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 ring-slate-400/50 dark:ring-slate-500/50 shadow-lg scale-110 opacity-100 z-10' : isTaken ? 'opacity-20 grayscale cursor-not-allowed scale-90 border border-black/10' : 'hover:scale-110 opacity-100 cursor-pointer shadow-sm hover:shadow-md'}`}
-                         >
-                            {isSelected && <motion.div layoutId="selected-color-check" className="w-3 h-3 bg-white rounded-full shadow-sm" transition={{ type: "spring", stiffness: 500, damping: 30 }} />}
-                         </button>
-                     );
-                })}
-                <div className="w-6 flex-shrink-0" />
+        <div className="w-full relative z-20 py-4 min-h-[70px]">
+            <div className="flex items-center gap-1.5 px-1 mb-2 opacity-60">
+                <Palette size={10} className="text-slate-500 dark:text-slate-400" />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Team Identity</span>
+            </div>
+            <div 
+                className="w-full overflow-x-auto overflow-y-visible no-scrollbar touch-pan-x flex items-center px-1" 
+                onPointerDown={(e) => e.stopPropagation()} 
+                style={{ overscrollBehaviorX: 'contain' }}
+            >
+                <div className="flex items-center gap-3 w-max pr-6 p-2"> 
+                    {sortedPalette.map(color => {
+                         const isSelected = selected === color;
+                         const isTaken = usedColors.has(color) && !isSelected;
+                         const theme = TEAM_COLORS[color];
+                         
+                         return (
+                             <button
+                                key={color} 
+                                onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    if (!isTaken) onChange(color); 
+                                }} 
+                                onPointerDown={(e) => e.stopPropagation()} 
+                                disabled={isTaken}
+                                className={`
+                                    relative w-9 h-9 rounded-full shadow-sm transition-transform duration-200 flex items-center justify-center shrink-0
+                                    ${theme.solid} 
+                                    border-2 border-white dark:border-slate-900
+                                    ${isSelected 
+                                        ? `scale-110 z-10 ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ${theme.ring}` 
+                                        : (isTaken ? 'opacity-30 grayscale scale-90 cursor-not-allowed' : 'hover:scale-110 hover:shadow-md')
+                                    }
+                                `}
+                                aria-label={`Select color ${color}`}
+                             >
+                                {isSelected && (
+                                    <motion.div 
+                                        layoutId="selected-color-check" 
+                                        className="absolute inset-0 flex items-center justify-center"
+                                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                    >
+                                        <Check size={16} className="text-white drop-shadow-md" strokeWidth={3} />
+                                    </motion.div>
+                                )}
+                                {isTaken && (
+                                    <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/20">
+                                        <Lock size={12} className="text-white opacity-80" />
+                                    </div>
+                                )}
+                             </button>
+                         );
+                    })}
+                </div>
             </div>
         </div>
     );
@@ -126,8 +176,25 @@ const EditableTitle = memo(({ name, onSave, className, isPlayer }: { name: strin
   useEffect(() => { setVal(name); }, [name]);
   useEffect(() => { if(isEditing) inputRef.current?.focus(); }, [isEditing]);
   const save = () => { setIsEditing(false); if(val.trim() && val !== name) onSave(val.trim()); else setVal(name); };
-  if(isEditing) return <input ref={inputRef} type="text" className={`bg-transparent text-slate-900 dark:text-white border-b border-indigo-500 outline-none w-full px-0 py-0 font-bold ${isPlayer ? 'text-sm' : 'text-xs uppercase tracking-widest'}`} value={val} onChange={e => setVal(e.target.value)} onBlur={save} onKeyDown={e => { if(e.key === 'Enter') save(); if(e.key === 'Escape') setIsEditing(false); }} onPointerDown={e => e.stopPropagation()} />;
-  return <div className={`flex items-center gap-2 group cursor-pointer min-w-0 ${className}`} onClick={() => setIsEditing(true)}><span className="truncate">{name}</span><Edit2 size={8} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 flex-shrink-0" /></div>;
+  
+  if(isEditing) return (
+    <input 
+        ref={inputRef} 
+        type="text" 
+        className={`bg-transparent text-slate-900 dark:text-white border-b-2 border-indigo-500 outline-none w-full px-0 py-1 font-bold placeholder-slate-400 ${isPlayer ? 'text-sm' : 'text-xl uppercase tracking-tight'}`} 
+        value={val} 
+        onChange={e => setVal(e.target.value)} 
+        onBlur={save} 
+        onKeyDown={e => { if(e.key === 'Enter') save(); if(e.key === 'Escape') setIsEditing(false); }} 
+        onPointerDown={e => e.stopPropagation()} 
+    />
+  );
+  return (
+    <div className={`flex items-center gap-2 group cursor-pointer min-w-0 ${className}`} onClick={() => setIsEditing(true)}>
+        <span className="truncate text-slate-900 dark:text-white">{name}</span>
+        <Edit2 size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 flex-shrink-0" />
+    </div>
+  );
 });
 
 const TeamLogoUploader = memo(({ currentLogo, onUpdate, teamName }: { currentLogo?: string, onUpdate: (logo: string) => void, teamName: string }) => {
@@ -152,17 +219,16 @@ const TeamLogoUploader = memo(({ currentLogo, onUpdate, teamName }: { currentLog
         <div className="relative group flex-shrink-0">
             <button 
                 onClick={triggerUpload}
-                className="w-10 h-10 rounded-full border border-black/10 dark:border-white/10 bg-white/50 dark:bg-white/5 flex items-center justify-center overflow-hidden hover:opacity-80 transition-opacity"
+                className="w-12 h-12 rounded-full border-2 border-white dark:border-white/10 bg-slate-100 dark:bg-white/5 flex items-center justify-center overflow-hidden hover:opacity-90 transition-opacity shadow-sm"
                 title={`Change ${teamName} Logo`}
             >
                 {currentLogo ? (
                     <img src={currentLogo} alt={teamName} className="w-full h-full object-cover" />
                 ) : (
-                    <ImageIcon size={16} className="text-slate-400 dark:text-slate-500" />
+                    <ImageIcon size={20} className="text-slate-400 dark:text-slate-500" />
                 )}
-                {/* Hover Overlay */}
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Edit2 size={12} className="text-white" />
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+                    <Edit2 size={14} className="text-white" />
                 </div>
             </button>
             <input 
@@ -199,19 +265,19 @@ const AddPlayerInput = memo(({ onAdd, disabled, customLabel }: { onAdd: (name: s
     
     if (isOpen && !disabled) {
         return (
-            <div ref={containerRef} className="flex flex-col mt-2 animate-in fade-in slide-in-from-top-1 bg-white/60 dark:bg-white/[0.04] p-2 rounded-xl border border-black/5 dark:border-white/5 shadow-sm ring-1 ring-black/5">
-                <input ref={inputRef} className="w-full bg-transparent border-b border-black/10 dark:border-white/10 px-2 py-2 text-sm text-slate-800 dark:text-white focus:outline-none font-bold placeholder:text-slate-400 mb-2" placeholder={t('teamManager.addPlayerPlaceholder')} value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if(e.key === 'Enter') submit(); if(e.key === 'Escape') setIsOpen(false); }} />
-                <div className="flex items-center gap-2">
-                    <input type="tel" className="w-16 text-center bg-white/50 dark:bg-black/20 rounded-lg border border-transparent focus:border-indigo-500 focus:bg-white dark:focus:bg-black/40 px-1 py-1.5 text-xs font-black text-slate-700 dark:text-slate-300 outline-none" placeholder="#" value={number} onChange={e => setNumber(e.target.value)} maxLength={3} />
-                    <div className="flex-1 flex items-center justify-center bg-white/30 dark:bg-white/5 rounded-lg px-2 py-1"><SkillSlider level={skill} onChange={setSkill} /></div>
-                    <button onClick={submit} className="p-2 bg-indigo-500 rounded-lg hover:bg-indigo-400 text-white shadow-md active:scale-95 transition-transform"><Plus size={18} /></button>
+            <div ref={containerRef} className="flex flex-col mt-4 animate-in fade-in slide-in-from-top-1 bg-white dark:bg-white/[0.08] p-4 rounded-3xl border border-indigo-500/30 shadow-xl ring-1 ring-indigo-500/20 backdrop-blur-md">
+                <input ref={inputRef} className="w-full bg-transparent border-b border-slate-200 dark:border-white/10 px-2 py-3 text-sm text-slate-900 dark:text-white focus:outline-none font-bold placeholder:text-slate-400 mb-4" placeholder={t('teamManager.addPlayerPlaceholder')} value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if(e.key === 'Enter') submit(); if(e.key === 'Escape') setIsOpen(false); }} />
+                <div className="flex items-center gap-3">
+                    <input type="tel" className="w-16 text-center bg-slate-100 dark:bg-black/20 rounded-2xl border border-transparent focus:border-indigo-500 focus:bg-white dark:focus:bg-black/40 px-1 py-3 text-xs font-black text-slate-800 dark:text-slate-200 outline-none transition-all placeholder:text-slate-400" placeholder="#" value={number} onChange={e => setNumber(e.target.value)} maxLength={3} />
+                    <div className="flex-1 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-2xl px-2 py-2"><SkillSlider level={skill} onChange={setSkill} /></div>
+                    <button onClick={submit} className="p-3 bg-indigo-500 rounded-2xl hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/30 active:scale-95 transition-all"><Plus size={20} /></button>
                 </div>
             </div>
         );
     }
     const labelContent = customLabel || t('common.add');
     const isBenchLabel = customLabel?.toLowerCase().includes('bench') || customLabel?.toLowerCase().includes('reserve') || customLabel?.toLowerCase().includes('banco');
-    return <button onClick={() => !disabled && setIsOpen(true)} disabled={disabled} className={`mt-2 w-full py-3 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest rounded-xl border border-dashed transition-all ${disabled ? 'border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed' : 'border-slate-300 dark:border-slate-700 text-slate-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10'}`} >{disabled ? <><Ban size={14} /> {t('common.full')}</> : <>{isBenchLabel ? <Armchair size={14} className="text-emerald-500" /> : <Plus size={14} />} {labelContent}</>}</button>;
+    return <button onClick={() => !disabled && setIsOpen(true)} disabled={disabled} className={`mt-4 w-full py-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest rounded-3xl border border-dashed transition-all group ${disabled ? 'border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed' : 'border-slate-300 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10'}`} >{disabled ? <><Ban size={16} /> {t('common.full')}</> : <>{isBenchLabel ? <Armchair size={16} className="text-emerald-500 group-hover:scale-110 transition-transform" /> : <Plus size={16} className="group-hover:scale-110 transition-transform" />} {labelContent}</>}</button>;
 });
 
 const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamColor, onUpdateTeamLogo, onUpdatePlayer, onSaveProfile, onAddPlayer, onKnockoutRequest, usedColors, isQueue = false, onMove, toggleTeamBench, substitutePlayers, statsMap, onRequestProfileEdit, onViewProfile, onTogglePlayerMenu, activePlayerMenuId, isNext = false, onDisband, onReorder, queueIndex, queueSize, isDragOver, onShowToast, activeNumberId, onRequestEditNumber }: any) => {
@@ -269,7 +335,11 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
   const handleSubstitution = (pIn: string, pOut: string) => { substitutePlayers(id, pIn, pOut); };
   const applySort = (criteria: any) => { setSortConfig(prev => ({ criteria, direction: prev.criteria === criteria && prev.direction === 'asc' ? 'desc' : 'asc' })); setShowSortMenu(false); };
 
-  const bgClass = viewMode === 'reserves' ? 'bg-slate-200/50 dark:bg-white/[0.05] border-dashed border-slate-300 dark:border-white/10' : `bg-white/40 dark:bg-[#0f172a]/60 bg-gradient-to-b ${colorConfig.gradient} ${colorConfig.border} shadow-xl shadow-black/5`;
+  // Improved background and border contrast for light mode
+  const bgClass = viewMode === 'reserves' 
+    ? 'bg-slate-100/80 dark:bg-white/[0.02] border-dashed border-slate-300 dark:border-white/10' 
+    : `bg-white/70 dark:bg-[#0f172a]/60 bg-gradient-to-b ${colorConfig.gradient} border-slate-200 dark:border-white/5 shadow-xl shadow-black/5 dark:shadow-black/20`;
+  
   let addButtonLabel = viewMode === 'reserves' ? t('teamManager.benchLabel') : (mainRosterFull ? t('teamManager.benchLabel') : t('common.add'));
   const teamStrength = calculateTeamStrength(team.players);
 
@@ -289,53 +359,103 @@ const TeamColumn = memo(({ id, team, profiles, onUpdateTeamName, onUpdateTeamCol
   if (isQueue && typeof queueIndex === 'number') {
       const pos = queueIndex + 1;
       let badgeColor = 'bg-slate-200 text-slate-600 dark:bg-white/10 dark:text-slate-300';
-      let icon = <ListOrdered size={10} strokeWidth={3} />;
+      let icon = <ListOrdered size={12} strokeWidth={3} />;
       let text = `${pos}º`;
 
-      if (pos === 1) { badgeColor = 'bg-amber-500 text-amber-950 shadow-lg shadow-amber-500/20'; icon = <ArrowUpCircle size={10} strokeWidth={3} />; text = "NEXT UP"; } 
+      if (pos === 1) { badgeColor = 'bg-amber-500 text-amber-950 shadow-lg shadow-amber-500/20'; icon = <ArrowUpCircle size={14} strokeWidth={3} />; text = "NEXT UP"; } 
       else if (pos === 2) { badgeColor = 'bg-slate-400 text-white shadow-sm'; text = "2º"; } 
       else if (pos === 3) { text = "3º"; }
 
-      queueBadge = <div className={`absolute -top-3 left-1.5 px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest z-10 flex items-center gap-1 ${badgeColor}`}>{icon} {text}</div>;
+      queueBadge = <div className={`absolute -top-3 left-4 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest z-10 flex items-center gap-1.5 shadow-sm border border-white/50 dark:border-white/20 ${badgeColor}`}>{icon} {text}</div>;
   }
 
+  // MIN-HEIGHT ADJUSTMENT FOR MOBILE PORTRAIT MAXIMIZATION
+  const mobileMinHeight = isQueue ? 'min-h-[160px]' : 'min-h-[300px]';
+
   return (
-    <div ref={droppableRef} className={`flex flex-col w-full h-full rounded-2xl border backdrop-blur-2xl relative transition-all duration-200 ${isQueue ? 'p-1.5 bg-white/30 dark:bg-white/[0.02] border-slate-200/50 dark:border-white/5' : `p-3 ${bgClass}`} ${isDragOver ? `ring-4 ${finalRing} ring-opacity-50 scale-[1.01] ${dropBg} z-20` : (isQueue ? '' : 'hover:border-black/10 dark:hover:border-white/20')} ${(isQueue && queueIndex === 0) ? 'ring-2 ring-amber-500/50 dark:ring-amber-500/40 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 shadow-2xl shadow-amber-500/10' : ''}`} >
+    <div ref={droppableRef} className={`flex flex-col w-full h-full ${mobileMinHeight} rounded-[2.5rem] border backdrop-blur-2xl relative transition-all duration-300 ${isQueue ? 'p-6 bg-white/50 dark:bg-white/[0.03] border-slate-200 dark:border-white/5' : `p-6 sm:p-8 ${bgClass}`} ${isDragOver ? `ring-4 ${finalRing} ring-opacity-50 scale-[1.01] ${dropBg} z-20` : (isQueue ? '' : 'hover:border-slate-300 dark:hover:border-white/20')} ${(isQueue && queueIndex === 0) ? 'ring-2 ring-amber-500/50 dark:ring-amber-500/40 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 shadow-2xl shadow-amber-500/10' : ''}`} >
       {queueBadge}
       <SubstitutionModal isOpen={isSubModalOpen} onClose={() => setIsSubModalOpen(false)} team={team} onConfirm={handleSubstitution} />
-      <div className="flex flex-col mb-1">
-        <div className="flex items-center justify-between gap-3 border-b border-black/5 dark:border-white/5 pb-2 mb-1">
-            <div className={`w-1 h-8 self-center rounded-full ${colorConfig.halo} shadow-[0_0_10px_currentColor] opacity-90`} />
-            
-            {/* Identity Section (Logo + Name) */}
-            <div className="flex-1 min-w-0 flex items-center gap-2">
-                <TeamLogoUploader currentLogo={team.logo} onUpdate={handleUpdateLogo} teamName={team.name} />
-                <div className="flex flex-col min-w-0">
-                    <span className={`text-[10px] font-bold uppercase tracking-widest opacity-70 ${colorConfig.text}`}>{isQueue ? t('teamManager.queue') : (viewMode === 'reserves' ? t('teamManager.benchLabel') : t('teamManager.teamLabel'))}</span>
-                    <EditableTitle name={team.name} onSave={handleUpdateName} className={`text-base font-black uppercase tracking-tight ${colorConfig.text} ${colorConfig.textDark}`} />
-                </div>
+      
+      {/* HEADER SECTION - REFINED */}
+      <div className="flex flex-col mb-2 w-full">
+        {/* Row 1: Identity (Logo + Name) - Takes MAX width */}
+        <div className="flex items-center gap-4 mb-4 w-full">
+            <div className={`w-1 h-10 self-center rounded-full ${colorConfig.halo} shadow-[0_0_8px_currentColor] opacity-90 flex-shrink-0`} />
+            <TeamLogoUploader currentLogo={team.logo} onUpdate={handleUpdateLogo} teamName={team.name} />
+            <div className="flex-1 min-w-0">
+                <EditableTitle name={team.name} onSave={handleUpdateName} className={`text-xl font-black uppercase tracking-tight ${colorConfig.text} ${colorConfig.textDark} drop-shadow-sm w-full`} />
+            </div>
+        </div>
+
+        {/* Row 2: Stats Pills + Actions - Compact below */}
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-white/5 pb-4 mb-2 w-full">
+             <div className="flex gap-2 flex-wrap">
+                <div className={`px-3 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1.5 shadow-sm text-white ${colorConfig.bg} ${colorConfig.border}`}><Users size={12} strokeWidth={2.5} /> {displayedPlayers.length}</div>
+                <div className={`px-3 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1.5 shadow-sm ${colorConfig.bg.replace('/20', '/40')} ${colorConfig.border} dark:text-white dark:border-white/20 text-slate-700`} title="Avg Team Skill"><Activity size={12} strokeWidth={2.5} /> {teamStrength}</div>
             </div>
 
-            <div className="flex flex-col items-end gap-1.5">
-                <div className="flex items-center gap-1">
-                    <button onClick={(e) => { e.stopPropagation(); toggleTeamBench(id); }} onPointerDown={(e) => e.stopPropagation()} className={`p-1.5 rounded-xl border border-transparent transition-all ${team.hasActiveBench ? 'bg-emerald-500 text-white shadow-sm' : 'bg-black/5 dark:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`} title={team.hasActiveBench ? "Deactivate Bench" : "Activate Bench (Reserves)"}><Armchair size={16} fill={team.hasActiveBench ? 'currentColor' : 'none'} /></button>
-                    <div className="relative">
-                        <button onClick={() => setShowSortMenu(!showSortMenu)} className={`p-1.5 rounded-xl border border-transparent hover:border-black/5 dark:hover:border-white/5 hover:bg-black/5 dark:hover:bg-white/10 ${showSortMenu ? 'bg-black/5 dark:bg-white/10' : ''}`}>{isQueue ? <MoreVertical size={16} className={`${colorConfig.text}`} /> : <ListFilter size={16} className={`${colorConfig.text}`} />}</button>
-                        <AnimatePresence>{showSortMenu && (<motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 5, scale: 0.95 }} className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-black/5 dark:border-white/10 p-1 flex flex-col min-w-[160px]">{isQueue && onDisband && onReorder && queueIndex !== undefined && queueSize !== undefined ? (<><span className="text-[9px] font-bold text-slate-400 px-3 py-1.5 uppercase tracking-widest">{t('teamManager.queueActions.title')}</span>{queueIndex >= 1 && (<button onClick={(e) => { e.stopPropagation(); onReorder(queueIndex, 0); setShowSortMenu(false); }} className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg text-left w-full"><ChevronsUp size={14} /> {t('teamManager.queueActions.moveToTop')}</button>)}{queueIndex >= 1 && queueIndex !== 1 && (<button onClick={(e) => { e.stopPropagation(); onReorder(queueIndex, queueIndex - 1); setShowSortMenu(false); }} className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-left w-full"><ChevronUp size={14} /> {t('teamManager.queueActions.moveUp')}</button>)}{queueIndex < queueSize - 1 && (<button onClick={(e) => { e.stopPropagation(); onReorder(queueIndex, queueIndex + 1); setShowSortMenu(false); }} className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-left w-full"><ChevronDown size={14} /> {t('teamManager.queueActions.moveDown')}</button>)}<div className="h-px bg-black/5 dark:bg-white/5 my-1" /><button onClick={() => { onDisband(id); setShowSortMenu(false); }} className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-left w-full"><Trash2 size={14} /> {t('teamManager.queueActions.disband')}</button></>) : (<><span className="text-[10px] font-bold text-slate-400 px-3 py-1.5 uppercase tracking-widest">{t('teamManager.sort.label')}</span><button onClick={() => applySort('name')} className="flex items-center justify-center px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-left"><div className="flex items-center gap-2"><ArrowDownAZ size={14} /> {t('teamManager.sort.name')}</div>{sortConfig.criteria === 'name' && <span className="text-[10px]">{sortConfig.direction === 'asc' ? t('teamManager.sort.asc') : t('teamManager.sort.desc')}</span>}</button><button onClick={() => applySort('number')} className="flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-left"><div className="flex items-center gap-2"><ArrowDown01 size={14} /> {t('teamManager.sort.number')}</div>{sortConfig.criteria === 'number' && <span className="text-[10px]">{sortConfig.direction === 'asc' ? t('teamManager.sort.asc') : t('teamManager.sort.desc')}</span>}</button><button onClick={() => applySort('skill')} className="flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-left"><div className="flex items-center gap-2"><ArrowUpWideNarrow size={14} /> {t('teamManager.sort.skill')}</div>{sortConfig.criteria === 'skill' && <span className="text-[10px]">{sortConfig.direction === 'asc' ? t('teamManager.sort.asc') : t('teamManager.sort.desc')}</span>}</button><div className="h-px bg-black/5 dark:bg-white/5 my-1" /><button onClick={() => applySort('original')} className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-left"><RefreshCcw size={14} /> {t('teamManager.sort.reset')}</button></>)}</motion.div>)}</AnimatePresence>
-                    </div>
-                </div>
-                <div className="flex gap-1">
-                    <div className={`px-2 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 shadow-sm text-white ${colorConfig.bg} ${colorConfig.border}`}><Users size={10} strokeWidth={2.5} /> {displayedPlayers.length}</div>
-                    <div className={`px-2 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 shadow-sm ${colorConfig.bg.replace('/20', '/40')} ${colorConfig.border} dark:text-white dark:border-white/20 text-slate-700`} title="Avg Team Skill"><Activity size={10} strokeWidth={2.5} /> {teamStrength}</div>
+            <div className="flex items-center gap-2">
+                <button onClick={(e) => { e.stopPropagation(); toggleTeamBench(id); }} onPointerDown={(e) => e.stopPropagation()} className={`p-2 rounded-xl border border-transparent transition-all ${team.hasActiveBench ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/20' : 'bg-slate-100 dark:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`} title={team.hasActiveBench ? "Deactivate Bench" : "Activate Bench (Reserves)"}><Armchair size={16} fill={team.hasActiveBench ? 'currentColor' : 'none'} /></button>
+                <div className="relative">
+                    <button onClick={() => setShowSortMenu(!showSortMenu)} className={`p-2 rounded-xl border border-transparent hover:bg-slate-100 dark:hover:bg-white/10 transition-colors ${showSortMenu ? 'bg-slate-100 dark:bg-white/10' : ''}`}>{isQueue ? <MoreVertical size={16} className={`${colorConfig.text}`} /> : <ListFilter size={16} className={`${colorConfig.text}`} />}</button>
+                    <AnimatePresence>
+                        {showSortMenu && (
+                            <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} className="absolute right-0 top-full mt-2 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-black/5 dark:border-white/10 p-1.5 flex flex-col min-w-[180px]">
+                                {isQueue && onDisband && onReorder && queueIndex !== undefined && queueSize !== undefined ? (
+                                    <>
+                                        <span className="text-[9px] font-bold text-slate-400 px-3 py-2 uppercase tracking-widest text-left">{t('teamManager.queueActions.title')}</span>
+                                        {queueIndex >= 1 && (<button onClick={(e) => { e.stopPropagation(); onReorder(queueIndex, 0); setShowSortMenu(false); }} className="flex items-center gap-2 px-3 py-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-xl text-left w-full"><ChevronsUp size={16} /> {t('teamManager.queueActions.moveToTop')}</button>)}
+                                        {queueIndex >= 1 && queueIndex !== 1 && (<button onClick={(e) => { e.stopPropagation(); onReorder(queueIndex, queueIndex - 1); setShowSortMenu(false); }} className="flex items-center gap-2 px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-left w-full"><ChevronUp size={16} /> {t('teamManager.queueActions.moveUp')}</button>)}
+                                        {queueIndex < queueSize - 1 && (<button onClick={(e) => { e.stopPropagation(); onReorder(queueIndex, queueIndex + 1); setShowSortMenu(false); }} className="flex items-center gap-2 px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-left w-full"><ChevronDown size={16} /> {t('teamManager.queueActions.moveDown')}</button>)}
+                                        <div className="h-px bg-black/5 dark:bg-white/5 my-1" />
+                                        <button onClick={() => { onDisband(id); setShowSortMenu(false); }} className="flex items-center gap-2 px-3 py-2.5 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl text-left w-full"><Trash2 size={16} /> {t('teamManager.queueActions.disband')}</button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="text-[10px] font-bold text-slate-400 px-3 py-2 uppercase tracking-widest text-left">{t('teamManager.sort.label')}</span>
+                                        <button onClick={() => applySort('name')} className="flex items-center justify-start px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-left w-full">
+                                            <div className="flex items-center gap-3 flex-1">
+                                                <ArrowDownAZ size={16} className="flex-shrink-0 opacity-60" /> 
+                                                <span>{t('teamManager.sort.name')}</span>
+                                            </div>
+                                            {sortConfig.criteria === 'name' && <span className="text-[10px] text-indigo-500">{sortConfig.direction === 'asc' ? 'A-Z' : 'Z-A'}</span>}
+                                        </button>
+                                        <button onClick={() => applySort('number')} className="flex items-center justify-start px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-left w-full">
+                                            <div className="flex items-center gap-3 flex-1">
+                                                <ArrowDown01 size={16} className="flex-shrink-0 opacity-60" /> 
+                                                <span>{t('teamManager.sort.number')}</span>
+                                            </div>
+                                            {sortConfig.criteria === 'number' && <span className="text-[10px] text-indigo-500">{sortConfig.direction === 'asc' ? '1-9' : '9-1'}</span>}
+                                        </button>
+                                        <button onClick={() => applySort('skill')} className="flex items-center justify-start px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-left w-full">
+                                            <div className="flex items-center gap-3 flex-1">
+                                                <ArrowUpWideNarrow size={16} className="flex-shrink-0 opacity-60" /> 
+                                                <span>{t('teamManager.sort.skill')}</span>
+                                            </div>
+                                            {sortConfig.criteria === 'skill' && <span className="text-[10px] text-indigo-500">{sortConfig.direction === 'asc' ? '1-10' : '10-1'}</span>}
+                                        </button>
+                                        <div className="h-px bg-black/5 dark:bg-white/5 my-1" />
+                                        <button onClick={() => applySort('original')} className="flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-left w-full">
+                                            <RefreshCcw size={16} className="flex-shrink-0 opacity-60" /> {t('teamManager.sort.reset')}
+                                        </button>
+                                    </>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
         </div>
+        
         {viewMode === 'main' && <ColorPicker selected={team.color || 'slate'} onChange={handleUpdateColor} usedColors={usedColors} />}
       </div>
-      {team.hasActiveBench && (<div className="flex justify-end mb-2 gap-2"><button onClick={() => setIsSubModalOpen(true)} className={`flex items-center justify-center p-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/5 text-slate-500 hover:text-indigo-500`} title="Substitute Player"><ArrowRightLeft size={18} /></button><button onClick={toggleView} className={`flex items-center gap-1 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${viewMode === 'reserves' ? 'bg-amber-500 text-white shadow-md' : 'bg-black/5 dark:bg-white/5 text-slate-500 hover:bg-black/10 dark:hover:bg-white/10'}`}>{viewMode === 'reserves' ? <ChevronLeft size={14} /> : null}{viewMode === 'reserves' ? t('common.back') : t('teamManager.benchLabel')}{viewMode === 'main' ? <ChevronRight size={14} /> : null}</button></div>)}
+
+      {team.hasActiveBench && (<div className="flex justify-end mb-4 gap-2 px-1"><button onClick={() => setIsSubModalOpen(true)} className={`flex items-center justify-center p-3 rounded-2xl text-[10px] font-bold uppercase tracking-wider transition-all bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-500 hover:text-indigo-500 shadow-sm`} title="Substitute Player"><ArrowRightLeft size={20} /></button><button onClick={toggleView} className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-wider transition-all ${viewMode === 'reserves' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'}`}>{viewMode === 'reserves' ? <ChevronLeft size={16} /> : null}{viewMode === 'reserves' ? t('common.back') : t('teamManager.benchLabel')}{viewMode === 'main' ? <ChevronRight size={16} /> : null}</button></div>)}
       
-      <motion.div variants={staggerContainer} initial="hidden" animate="visible" className={`flex-1 space-y-1.5 mt-1 overflow-y-auto custom-scrollbar ${isQueue ? 'min-h-[40px]' : 'min-h-[60px]'}`} onScroll={dispatchScrollEvent}>
-        {displayedPlayers.length === 0 && <span className="text-[10px] text-slate-400 italic py-6 block text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-xl bg-slate-50/50 dark:bg-white/[0.01]">{viewMode === 'reserves' ? t('common.empty') : t('teamManager.dragPlayersHere')}</span>}
+      {/* LIST OF PLAYERS - SPACED OUT */}
+      <motion.div variants={staggerContainer} initial="hidden" animate="visible" className={`flex-1 space-y-3 mt-2 overflow-y-auto custom-scrollbar px-1 ${isQueue ? 'min-h-[60px]' : 'min-h-[80px]'}`} onScroll={dispatchScrollEvent}>
+        {displayedPlayers.length === 0 && <span className="text-xs text-slate-400 italic py-10 block text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-3xl bg-slate-50/50 dark:bg-white/[0.01]">{viewMode === 'reserves' ? t('common.empty') : t('teamManager.dragPlayersHere')}</span>}
         <SortableContextFixed items={displayedPlayers.map(p => p.id)} strategy={verticalListSortingStrategy}>
           <AnimatePresence initial={false}>
             {displayedPlayers.map(p => (
@@ -430,65 +550,81 @@ const ProfileCard = memo(({ profile, onDelete, onAddToGame, status, onEdit, plac
     const statusLabels: Record<string, string> = { 'A': t('teamManager.location.courtA'), 'B': t('teamManager.location.courtB'), 'Queue': t('teamManager.location.queue'), 'A_Bench': t('teamManager.benchLabel'), 'B_Bench': t('teamManager.benchLabel'), 'Queue_Bench': 'Q-Bench' };
     
     const teamTheme = teamColor ? resolveTheme(teamColor) : null;
-    const cardBg = teamTheme ? `${teamTheme.bg.replace('/20', '/10')} dark:${teamTheme.bg.replace('/20', '/20')} border-${teamColor}-200 dark:border-${teamColor}-500/30` : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20';
+    
+    // Updated background for better visibility in light mode
+    const cardBg = teamTheme 
+        ? `${teamTheme.bg.replace('/20', '/10')} dark:${teamTheme.bg.replace('/20', '/20')} border-${teamColor}-200 dark:border-${teamColor}-500/30` 
+        : 'bg-white/80 dark:bg-white/[0.04] border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 hover:bg-white dark:hover:bg-white/[0.08]';
     
     return (
         <motion.div 
             variants={staggerItem} 
-            className={`relative flex items-center p-3 rounded-2xl border transition-all min-h-[80px] gap-3 group ${cardBg}`}
+            className={`
+                group relative flex items-center
+                p-4 rounded-[1.5rem] border transition-all 
+                min-h-[88px] gap-4 backdrop-blur-md shadow-sm
+                ${cardBg}
+            `}
         >
-            {/* Avatar Section */}
+            {/* AVATAR: Left, Fixed Size, Shrink-0 */}
             <div className="relative cursor-pointer shrink-0" onClick={onView}>
-                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-black/20 flex items-center justify-center text-2xl shadow-inner border border-black/5 dark:border-white/5">
+                <div className="w-14 h-14 rounded-[1.2rem] bg-slate-100 dark:bg-black/20 flex items-center justify-center text-3xl shadow-inner border border-slate-200 dark:border-white/5">
                     {profile.avatar || '👤'}
                 </div>
                 {profile.number && (
-                    <div className="absolute -top-1.5 -right-1.5 bg-slate-900 text-white dark:bg-white dark:text-black text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md border border-white dark:border-slate-900">
+                    <div className="absolute -top-2 -right-2 bg-slate-900 text-white dark:bg-white dark:text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-md border-2 border-white dark:border-slate-900 z-10">
                         {profile.number}
                     </div>
                 )}
             </div>
 
-            {/* Info Section */}
-            <div className="flex flex-col flex-1 min-w-0" onClick={onView}>
-                <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-200 truncate text-sm leading-tight">
-                        {profile.name}
-                    </h4>
-                    {RoleIcon && <RoleIcon size={12} className={roleColor} strokeWidth={3} />}
-                </div>
+            {/* INFO: Middle, Flexible, Truncated */}
+            <div className="flex flex-col flex-1 min-w-0 justify-center h-full gap-1.5" onClick={onView}>
                 
-                <div className="flex items-center gap-2 mt-1">
-                    <div className="flex items-center gap-1 bg-white/50 dark:bg-white/5 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                        <Star size={8} className="text-amber-400 fill-amber-400" />
-                        <span>{profile.skillLevel}</span>
+                {/* Name Row - Strong color for light mode */}
+                <h4 className="font-bold text-slate-900 dark:text-slate-100 truncate text-base leading-tight pr-1">
+                    {profile.name}
+                </h4>
+                
+                {/* Badges Row - Flex Wrap avoided if possible, but safe */}
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-1 bg-white/70 dark:bg-white/5 px-2 py-0.5 rounded-lg text-[10px] font-bold text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/5 shrink-0">
+                        <Star size={10} className="text-amber-400 fill-amber-400" />
+                        <span>Lvl {profile.skillLevel}</span>
                     </div>
+
+                    {RoleIcon && (
+                        <div className={`flex items-center justify-center p-1 rounded-lg ${roleColor.replace('text-', 'bg-').replace('500', '500/10')} shrink-0`}>
+                            <RoleIcon size={12} className={roleColor} strokeWidth={3} />
+                        </div>
+                    )}
                     
                     {status && (
-                        <div className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border shadow-sm ${teamTheme ? `${teamTheme.bg} ${teamTheme.textDark} ${teamTheme.border}` : 'bg-slate-100 text-slate-600'}`}>
+                        <div className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border shadow-sm shrink-0 truncate ${teamTheme ? `${teamTheme.bg} ${teamTheme.textDark} ${teamTheme.border}` : 'bg-slate-100 text-slate-600'}`}>
                             {statusLabels[status] || status}
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Action Section - Compact Right Side */}
-            <div className="flex flex-col gap-1 shrink-0 bg-white/40 dark:bg-black/20 p-1 rounded-xl backdrop-blur-sm">
+            {/* ACTIONS: Right, Fixed/Shrink-0 */}
+            <div className="flex items-center gap-3 shrink-0">
                 {!status ? (
-                    <button ref={joinButtonRef} onClick={handleToggleJoinMenu} onPointerDown={(e) => e.stopPropagation()} className="w-8 h-8 flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg shadow-sm active:scale-95 transition-all">
-                        <PlusCircle size={16} />
+                    <button ref={joinButtonRef} onClick={handleToggleJoinMenu} onPointerDown={(e) => e.stopPropagation()} className="w-10 h-10 flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl shadow-md shadow-indigo-500/20 active:scale-95 transition-all">
+                        <PlusCircle size={20} />
                     </button>
                 ) : (
-                    <div className="w-8 h-8 flex items-center justify-center text-slate-400 cursor-not-allowed">
-                        <Check size={16} />
+                    <div className="w-10 h-10 flex items-center justify-center text-slate-400 cursor-not-allowed bg-slate-100 dark:bg-white/5 rounded-2xl border border-transparent">
+                        <Check size={20} />
                     </div>
                 )}
                 
-                <div className="flex gap-1">
-                    <button onClick={handleEdit} onPointerDown={(e) => e.stopPropagation()} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg transition-colors">
+                {/* Edit/Delete Mini-Menu */}
+                <div className="flex flex-col gap-1.5">
+                     <button onClick={handleEdit} onPointerDown={(e) => e.stopPropagation()} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-xl transition-all">
                         <Edit2 size={14} />
                     </button>
-                    <button onClick={handleDelete} onPointerDown={(e) => e.stopPropagation()} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors">
+                    <button onClick={handleDelete} onPointerDown={(e) => e.stopPropagation()} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all">
                         <Trash2 size={14} />
                     </button>
                 </div>
@@ -504,7 +640,7 @@ const BatchInputSection = memo(({ onGenerate }: { onGenerate: (names: string[]) 
     const { t } = useTranslation();
     const [rawNames, setRawNames] = useState('');
     const handleGenerate = () => { const names = rawNames.split('\n').map(n => n.trim()).filter(n => n); if (names.length > 0) { onGenerate(names); setRawNames(''); } };
-    return (<div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 px-1 pb-10 pt-4"> <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400"><AlertCircle size={16} className="mt-0.5 flex-shrink-0" /><div><p className="font-bold mb-1">{t('teamManager.batch.tipTitle')}</p><p><code>{t('teamManager.batch.tipFormat')}</code></p><p className="opacity-80 mt-1">{t('teamManager.batch.tipDesc')}</p></div></div><textarea className="w-full h-64 bg-white/50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl p-4 text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono text-sm resize-none custom-scrollbar" placeholder={t('teamManager.batch.placeholder')} value={rawNames} onChange={e => setRawNames(e.target.value)} /><Button onClick={handleGenerate} className="w-full" size="lg"><Shuffle size={18} /> {t('teamManager.generateTeams')}</Button></div>);
+    return (<div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 px-2 pb-10 pt-4"> <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 flex items-start gap-4 text-xs text-amber-700 dark:text-amber-400 shadow-sm"><AlertCircle size={20} className="mt-0.5 flex-shrink-0" /><div><p className="font-bold mb-1.5 text-sm">{t('teamManager.batch.tipTitle')}</p><p className="bg-amber-500/10 inline-block px-2 py-0.5 rounded mb-1.5 font-mono text-[10px]"><code>{t('teamManager.batch.tipFormat')}</code></p><p className="opacity-80 leading-relaxed">{t('teamManager.batch.tipDesc')}</p></div></div><textarea className="w-full h-80 bg-white/50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-[2rem] p-6 text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono text-sm resize-none custom-scrollbar shadow-inner" placeholder={t('teamManager.batch.placeholder')} value={rawNames} onChange={e => setRawNames(e.target.value)} /><Button onClick={handleGenerate} className="w-full h-16 text-sm" size="xl"><Shuffle size={20} /> {t('teamManager.generateTeams')}</Button></div>);
 });
 
 const RosterBoard = ({ courtA, courtB, queue, onUpdatePlayer, wrappedAdd, handleKnockoutRequest, usedColors, wrappedMove, playerStatsMap, setEditingTarget, setViewingProfileId, handleTogglePlayerMenu, activePlayerMenu, toggleTeamBench, wrappedUpdateColor, wrappedUpdateLogo, substitutePlayers, reorderQueue, handleDisbandTeam, dragOverContainerId, onShowToast, profiles, wrappedSaveProfile, onRequestProfileEdit, activeNumberId, onRequestEditNumber, onUpdateTeamName }: any) => {
@@ -563,19 +699,19 @@ const RosterBoard = ({ courtA, courtB, queue, onUpdatePlayer, wrappedAdd, handle
     const isFiltered = !!queueSearchTerm.trim();
 
     return (
-        <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="flex flex-col [@media(min-width:736px)]:grid [@media(min-width:736px)]:grid-cols-2 [@media(min-width:992px)]:flex [@media(min-width:992px)]:flex-row gap-4 [@media(min-width:992px)]:gap-8 pb-24 px-1 min-h-[60vh] pt-4">
-            <div className="w-full [@media(min-width:992px)]:w-[30%] h-full">
+        <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="flex flex-col [@media(min-width:992px)]:flex-row gap-8 [@media(min-width:992px)]:gap-10 pb-32 px-0 min-h-[70vh] pt-4">
+            <motion.div variants={staggerItem} className="w-full [@media(min-width:992px)]:w-[30%] flex-1">
                 <TeamColumn id="A" team={courtA} onUpdatePlayer={onUpdatePlayer} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(pid: string) => setEditingTarget({ type: 'player', id: pid })} onViewProfile={(pid: string) => setViewingProfileId(pid)} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} profiles={profiles} onUpdateTeamName={onUpdateTeamName} onUpdateTeamColor={wrappedUpdateColor} onUpdateTeamLogo={wrappedUpdateLogo} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} isDragOver={dragOverContainerId === 'A' || dragOverContainerId === 'A_Reserves'} onShowToast={onShowToast} activeNumberId={activeNumberId} onRequestEditNumber={onRequestEditNumber} />
-            </div>
-            <div className="w-full [@media(min-width:992px)]:w-[30%] h-full">
+            </motion.div>
+            <motion.div variants={staggerItem} className="w-full [@media(min-width:992px)]:w-[30%] flex-1">
                 <TeamColumn id="B" team={courtB} onUpdatePlayer={onUpdatePlayer} onAddPlayer={wrappedAdd} onKnockoutRequest={handleKnockoutRequest} usedColors={usedColors} onMove={wrappedMove} statsMap={playerStatsMap} onRequestProfileEdit={(pid: string) => setEditingTarget({ type: 'player', id: pid })} onViewProfile={(pid: string) => setViewingProfileId(pid)} onTogglePlayerMenu={handleTogglePlayerMenu} activePlayerMenuId={activePlayerMenu?.playerId || null} profiles={profiles} onUpdateTeamName={onUpdateTeamName} onUpdateTeamColor={wrappedUpdateColor} onUpdateTeamLogo={wrappedUpdateLogo} onSaveProfile={wrappedSaveProfile} onSortTeam={()=>{}} toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} isDragOver={dragOverContainerId === 'B' || dragOverContainerId === 'B_Reserves'} onShowToast={onShowToast} activeNumberId={activeNumberId} onRequestEditNumber={onRequestEditNumber} />
-            </div>
-            <motion.div variants={staggerItem} className="w-full [@media(min-width:736px)]:col-span-2 [@media(min-width:992px)]:w-[40%] relative p-1 pt-8 rounded-2xl bg-slate-100/50 dark:bg-white/[0.02] border border-dashed border-slate-300 dark:border-white/10 flex flex-col h-full overflow-hidden">
-                <div className="absolute top-4 left-6 px-3 py-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2 shadow-sm z-30"><Layers size={10} /><span>{t('teamManager.queue')}</span><span className="bg-slate-200 dark:bg-white/10 px-1.5 rounded text-slate-600 dark:text-slate-300">{queue.length}</span></div>{filteredQueue.length > 1 && (<div className="absolute top-4 right-6 px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 text-[9px] font-bold text-slate-400 border border-black/5 dark:border-white/5 z-30">{t('common.step', {number: `${queuePage} / ${filteredQueue.length}`})}</div>)}
-                <div className="flex items-center gap-2 px-4 mb-2 flex-shrink-0 mt-4"><div className="relative flex-1 group"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={14} /><input value={queueSearchTerm} onChange={(e) => setQueueSearchTerm(e.target.value)} placeholder={t('teamManager.searchQueue')} className="w-full bg-white/60 dark:bg-black/20 border border-black/5 dark:border-white/5 rounded-xl pl-9 pr-8 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:font-medium placeholder:text-slate-400" />{queueSearchTerm && (<button onClick={() => setQueueSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={12} /></button>)}</div>{filteredQueue.length > 1 && (<div className="flex bg-white/60 dark:bg-black/20 rounded-xl p-0.5 border border-black/5 dark:border-white/5 shrink-0"><button onClick={() => handleScrollQueue('left')} className="p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg text-slate-500 dark:text-slate-400 transition-colors"><ChevronLeft size={16} /></button><div className="w-px bg-black/5 dark:bg-white/5 my-1" /><button onClick={() => handleScrollQueue('right')} className="p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg text-slate-500 dark:text-slate-400 transition-colors"><ChevronRight size={16} /></button></div>)}</div>
-                <div ref={queueScrollRef} onScroll={onQueueScroll} className="flex-1 min-h-0 overflow-x-auto snap-x snap-mandatory no-scrollbar flex items-stretch pb-2 pt-2 px-1" >
+            </motion.div>
+            <motion.div variants={staggerItem} className="w-full [@media(min-width:992px)]:w-[40%] flex-1 relative p-2 pt-10 rounded-[2.5rem] bg-slate-100 dark:bg-white/[0.02] border border-dashed border-slate-300 dark:border-white/10 flex flex-col min-h-[300px] overflow-hidden shadow-inner">
+                <div className="absolute top-6 left-8 px-5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-2 shadow-sm z-30"><Layers size={12} /><span>{t('teamManager.queue')}</span><span className="bg-slate-100 dark:bg-white/10 px-1.5 rounded text-slate-600 dark:text-slate-300">{queue.length}</span></div>{filteredQueue.length > 1 && (<div className="absolute top-6 right-8 px-4 py-2 rounded-full bg-black/5 dark:bg-white/5 text-[9px] font-bold text-slate-400 border border-black/5 dark:border-white/5 z-30">{t('common.step', {number: `${queuePage} / ${filteredQueue.length}`})}</div>)}
+                <div className="flex items-center gap-4 px-6 mb-4 flex-shrink-0 mt-8"><div className="relative flex-1 group"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} /><input value={queueSearchTerm} onChange={(e) => setQueueSearchTerm(e.target.value)} placeholder={t('teamManager.searchQueue')} className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl pl-11 pr-10 py-3.5 text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:font-medium placeholder:text-slate-400 shadow-sm" />{queueSearchTerm && (<button onClick={() => setQueueSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={16} /></button>)}</div>{filteredQueue.length > 1 && (<div className="flex bg-white dark:bg-black/20 rounded-2xl p-1 border border-slate-200 dark:border-white/5 shrink-0 shadow-sm"><button onClick={() => handleScrollQueue('left')} className="p-2.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-slate-500 dark:text-slate-400 transition-colors"><ChevronLeft size={20} /></button><div className="w-px bg-slate-200 dark:bg-white/5 my-1" /><button onClick={() => handleScrollQueue('right')} className="p-2.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-slate-500 dark:text-slate-400 transition-colors"><ChevronRight size={20} /></button></div>)}</div>
+                <div ref={queueScrollRef} onScroll={onQueueScroll} className="flex-1 min-h-0 overflow-x-auto snap-x snap-mandatory no-scrollbar flex items-stretch pb-6 pt-2 px-4" >
                     {filteredQueue.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center h-full text-slate-400 italic gap-2 min-h-[300px] w-full"><Search size={24} className="opacity-20" /><span className="text-[10px]">{queue.length === 0 ? t('teamManager.queueEmpty') : t('teamManager.profiles.noMatch', { term: queueSearchTerm })}</span></div>
+                        <div className="flex-1 flex flex-col items-center justify-center h-full text-slate-400 italic gap-4 min-h-[240px] w-full"><Search size={40} className="opacity-20" /><span className="text-sm font-medium">{queue.length === 0 ? t('teamManager.queueEmpty') : t('teamManager.profiles.noMatch', { term: queueSearchTerm })}</span></div>
                     ) : (
                         <AnimatePresence initial={false} mode="popLayout">
                             {filteredQueue.map((team: Team, idx: number) => (
@@ -586,7 +722,7 @@ const RosterBoard = ({ courtA, courtB, queue, onUpdatePlayer, wrappedAdd, handle
                         </AnimatePresence>
                     )}
                 </div>
-                <div className="p-4 pt-2 border-t border-black/5 dark:border-white/5 bg-slate-50/50 dark:bg-transparent flex-shrink-0"><AddPlayerInput onAdd={(n, num, s) => wrappedAdd(n, 'Queue', num, s)} customLabel={t('teamManager.addPlayerQueue')} /></div>
+                <div className="p-6 pt-4 border-t border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-transparent flex-shrink-0"><AddPlayerInput onAdd={(n, num, s) => wrappedAdd(n, 'Queue', num, s)} customLabel={t('teamManager.addPlayerQueue')} /></div>
             </motion.div>
         </motion.div>
     );
@@ -945,7 +1081,7 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
 
   return (
     createPortal(
-    <Modal isOpen={props.isOpen} onClose={handleCloseAttempt} title={t('teamManager.title')} maxWidth="max-w-5xl" zIndex="z-[50]">
+    <Modal isOpen={props.isOpen} onClose={handleCloseAttempt} title={t('teamManager.title')} maxWidth="max-w-6xl" zIndex="z-[50]">
         
         {/* Tutorial Integration - Replaced with RichTutorialModal */}
         {activeTutorial === 'manager' && (
@@ -959,29 +1095,29 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
             
             {/* Header Tabs */}
-            <div className="flex px-1 mb-2 bg-slate-100 dark:bg-black/20 p-1 rounded-xl shrink-0">
-                <button onClick={() => setActiveTab('roster')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'roster' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>{t('teamManager.tabs.roster')}</button>
-                <button onClick={() => setActiveTab('profiles')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'profiles' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>{t('teamManager.tabs.profiles')}</button>
-                <button onClick={() => setActiveTab('input')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'input' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>{t('teamManager.tabs.batch')}</button>
+            <div className="flex px-1.5 mb-6 bg-slate-100 dark:bg-white/5 p-1.5 rounded-3xl shrink-0 border border-slate-200 dark:border-white/5">
+                <button onClick={() => setActiveTab('roster')} className={`flex-1 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'roster' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-transparent' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>{t('teamManager.tabs.roster')}</button>
+                <button onClick={() => setActiveTab('profiles')} className={`flex-1 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'profiles' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-transparent' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>{t('teamManager.tabs.profiles')}</button>
+                <button onClick={() => setActiveTab('input')} className={`flex-1 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'input' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-transparent' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>{t('teamManager.tabs.batch')}</button>
             </div>
 
             {/* Content Area */}
             <div className="flex-1 overflow-hidden relative">
                 {activeTab === 'roster' && (
                     <>
-                        <div className="flex justify-between items-center px-2 py-2 border-b border-black/5 dark:border-white/5 mb-2 shrink-0 flex-wrap gap-2">
-                            <div className="flex gap-2">
-                                <button onClick={() => props.onSetRotationMode('standard')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border transition-all ${props.rotationMode === 'standard' ? 'bg-indigo-500 text-white border-indigo-600 shadow-sm' : 'bg-transparent border-slate-300 dark:border-white/10 text-slate-400'}`} title={t('teamManager.modes.standardTooltip')}>{t('teamManager.modes.standard')}</button>
-                                <button onClick={() => props.onSetRotationMode('balanced')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border transition-all ${props.rotationMode === 'balanced' ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm' : 'bg-transparent border-slate-300 dark:border-white/10 text-slate-400'}`} title={t('teamManager.modes.balancedTooltip')}>{t('teamManager.modes.balanced')}</button>
+                        <div className="flex justify-between items-center px-2 py-2 mb-4 shrink-0 flex-wrap gap-3">
+                            <div className="flex gap-3">
+                                <button onClick={() => props.onSetRotationMode('standard')} className={`px-5 py-2.5 rounded-2xl text-[10px] font-bold uppercase border transition-all ${props.rotationMode === 'standard' ? 'bg-indigo-500 text-white border-indigo-600 shadow-lg shadow-indigo-500/20' : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-400'}`} title={t('teamManager.modes.standardTooltip')}>{t('teamManager.modes.standard')}</button>
+                                <button onClick={() => props.onSetRotationMode('balanced')} className={`px-5 py-2.5 rounded-2xl text-[10px] font-bold uppercase border transition-all ${props.rotationMode === 'balanced' ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/20' : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-400'}`} title={t('teamManager.modes.balancedTooltip')}>{t('teamManager.modes.balanced')}</button>
                             </div>
-                            <div className="flex gap-2">
-                                {props.canUndoRemove && <button onClick={props.onUndoRemove} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase transition-colors"><Undo2 size={12} /> {t('teamManager.undo')}</button>}
-                                <button onClick={() => { haptics.impact('medium'); props.onBalanceTeams(); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold uppercase transition-colors"><Shuffle size={12} /> {props.rotationMode === 'balanced' ? t('teamManager.actions.globalBalance') : t('teamManager.actions.restoreOrder')}</button>
-                                {resetRosters && <button onClick={() => setResetConfirmState(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500 text-white rounded-lg text-[10px] font-bold uppercase transition-colors hover:bg-rose-600 shadow-sm"><Trash2 size={12} /> {t('common.reset')}</button>}
+                            <div className="flex gap-3">
+                                {props.canUndoRemove && <button onClick={props.onUndoRemove} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-bold uppercase transition-colors"><Undo2 size={16} /> {t('teamManager.undo')}</button>}
+                                <button onClick={() => { haptics.impact('medium'); props.onBalanceTeams(); }} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-2xl text-[10px] font-bold uppercase transition-colors"><Shuffle size={16} /> {props.rotationMode === 'balanced' ? t('teamManager.actions.globalBalance') : t('teamManager.actions.restoreOrder')}</button>
+                                {resetRosters && <button onClick={() => setResetConfirmState(true)} className="flex items-center gap-2 px-5 py-2.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-2xl text-[10px] font-bold uppercase transition-colors hover:bg-rose-500/20 shadow-sm border border-rose-500/20"><Trash2 size={16} /> {t('common.reset')}</button>}
                             </div>
                         </div>
                         
-                        <div className="h-full overflow-y-auto custom-scrollbar pb-20">
+                        <div className="h-full overflow-y-auto custom-scrollbar pb-32 px-1">
                             {/* Pass handleUpdatePlayerWrapper instead of props.onUpdatePlayer to enable validation toast */}
                             <RosterBoard 
                                 courtA={props.courtA} courtB={props.courtB} queue={props.queue} 
@@ -999,15 +1135,15 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
                 )}
 
                 {activeTab === 'profiles' && (
-                    <div className="h-full overflow-y-auto custom-scrollbar p-2 pb-16 space-y-3">
-                        <button onClick={() => setEditingTarget({ type: 'profile', id: 'new' })} className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-indigo-500 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all group">
-                            <div className="p-2 rounded-full bg-slate-100 dark:bg-white/5 group-hover:bg-indigo-500 group-hover:text-white transition-colors"><Plus size={24} /></div>
-                            <span className="text-xs font-bold uppercase tracking-widest">{t('profile.create')}</span>
+                    <div className="h-full overflow-y-auto custom-scrollbar p-2 pb-24 space-y-6">
+                        <button onClick={() => setEditingTarget({ type: 'profile', id: 'new' })} className="w-full py-8 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 text-slate-400 hover:text-indigo-500 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all group bg-slate-50/50 dark:bg-white/[0.01]">
+                            <div className="p-4 rounded-full bg-slate-100 dark:bg-white/5 group-hover:bg-indigo-500 group-hover:text-white transition-colors"><Plus size={32} /></div>
+                            <span className="text-sm font-bold uppercase tracking-widest">{t('profile.create')}</span>
                         </button>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                             {Array.from(props.profiles.values()).length === 0 ? (
-                                <div className="col-span-full text-center py-10 text-slate-400 italic text-xs">{t('teamManager.profiles.empty')}</div>
+                                <div className="col-span-full text-center py-20 text-slate-400 italic text-sm">{t('teamManager.profiles.empty')}</div>
                             ) : (
                                 Array.from(props.profiles.values()).map((profile: PlayerProfile) => {
                                     // Determine Status
@@ -1090,10 +1226,10 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
                     <div className="fixed inset-0 z-[9998]" onClick={() => setActivePlayerMenu(null)} />
                     <div 
                         ref={playerMenuRef}
-                        className="fixed z-[9999] min-w-[180px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-black/10 dark:border-white/10 p-1 flex flex-col animate-in fade-in zoom-in-95 duration-200"
+                        className="fixed z-[9999] min-w-[220px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-black/10 dark:border-white/10 p-2 flex flex-col animate-in fade-in zoom-in-95 duration-200"
                         style={{ 
-                            top: Math.min(window.innerHeight - 200, activePlayerMenu.rect.bottom + 8), 
-                            left: Math.min(window.innerWidth - 190, Math.max(10, activePlayerMenu.rect.left - 100))
+                            top: Math.min(window.innerHeight - 240, activePlayerMenu.rect.bottom + 8), 
+                            left: Math.min(window.innerWidth - 230, Math.max(10, activePlayerMenu.rect.left - 110))
                         }}
                     >
                        {(() => {
@@ -1114,7 +1250,7 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
                            return (
                                <>
                                    {team && team.hasActiveBench && !isOnBench && (
-                                       <button onClick={() => { wrappedMove(p.id, logicalTeamId, `${logicalTeamId}_Reserves`); setActivePlayerMenu(null); }} className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg flex items-center gap-2"><Armchair size={14} /> {t('teamManager.menu.sendBench')}</button>
+                                       <button onClick={() => { wrappedMove(p.id, logicalTeamId, `${logicalTeamId}_Reserves`); setActivePlayerMenu(null); }} className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl flex items-center gap-3 transition-colors"><Armchair size={18} /> {t('teamManager.menu.sendBench')}</button>
                                    )}
                                    {team && !team.hasActiveBench && !isOnBench && (
                                        <button 
@@ -1122,9 +1258,9 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
                                                setBenchConfirmState({ teamId: logicalTeamId, playerId: p.id, sourceId: containerId || logicalTeamId });
                                                setActivePlayerMenu(null); 
                                            }} 
-                                           className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg flex items-center gap-2"
+                                           className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl flex items-center gap-3 transition-colors"
                                        >
-                                           <Armchair size={14} /> {t('teamManager.menu.sendBench')}
+                                           <Armchair size={18} /> {t('teamManager.menu.sendBench')}
                                        </button>
                                    )}
                                    {team && isOnBench && (
@@ -1135,19 +1271,19 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = (props) => {
                                                wrappedMove(p.id, `${logicalTeamId}_Reserves`, logicalTeamId); 
                                                setActivePlayerMenu(null); 
                                            }
-                                       }} className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg flex items-center gap-2"><Upload size={14} /> {t('teamManager.menu.returnCourt')}</button>
+                                       }} className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl flex items-center gap-3 transition-colors"><Upload size={18} /> {t('teamManager.menu.returnCourt')}</button>
                                    )}
                                    
                                    <div className="h-px bg-black/5 dark:bg-white/5 my-1" />
                                    
-                                   <button onClick={() => { props.onToggleFixed(p.id); setActivePlayerMenu(null); }} className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg flex items-center gap-2">
-                                       {p.isFixed ? <Unlock size={14} /> : <Pin size={14} />} {p.isFixed ? t('teamManager.menu.unlock') : t('teamManager.menu.lock')}
+                                   <button onClick={() => { props.onToggleFixed(p.id); setActivePlayerMenu(null); }} className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl flex items-center gap-3 transition-colors">
+                                       {p.isFixed ? <Unlock size={18} /> : <Pin size={18} />} {p.isFixed ? t('teamManager.menu.unlock') : t('teamManager.menu.lock')}
                                    </button>
                                    
                                    <div className="h-px bg-black/5 dark:bg-white/5 my-1" />
                                    
-                                   <button onClick={() => handleDeleteWithUndo(p.id)} className="w-full text-left px-3 py-2.5 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg flex items-center gap-2">
-                                       <Trash2 size={14} /> {t('teamManager.menu.delete')}
+                                   <button onClick={() => handleDeleteWithUndo(p.id)} className="w-full text-left px-4 py-3 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl flex items-center gap-3 transition-colors">
+                                       <Trash2 size={18} /> {t('teamManager.menu.delete')}
                                    </button>
                                </>
                            );

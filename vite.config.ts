@@ -77,7 +77,7 @@ export default defineConfig({
       manifest: {
         name: 'VolleyScore Pro 2',
         short_name: 'VolleyScore',
-        description: 'Professional Volleyball Scoreboard & Team Manager',
+        description: 'VolleyScore Pro 2 is the definitive volleyball companion. It combines a high-performance gesture-based scoreboard with deep team management. Features: Smart Rotation tracking (Standard & Balanced), customizable rules (Indoor/Beach, Sudden Death), career player statistics with "Scout Mode", real-time voice commands, and rich match history with momentum graphs.',
         theme_color: '#020617',
         background_color: '#020617',
         display: 'standalone',

@@ -63,7 +63,7 @@ const EditableTitle = memo(({ name, onSave, className }: { name: string; onSave:
       return (
           <input 
               ref={inputRef} type="text"
-              className={`bg-transparent text-slate-900 dark:text-white border-b border-indigo-500 outline-none w-full min-w-0 px-0 py-0 font-bold text-sm`}
+              className={`bg-transparent text-slate-900 dark:text-white border-b-2 border-indigo-500 outline-none w-full min-w-0 px-0 py-0 font-bold text-sm`}
               value={val} onChange={e => setVal(e.target.value)} onBlur={save}
               onKeyDown={e => { if(e.key === 'Enter') save(); if(e.key === 'Escape') setIsEditing(false); }}
               onPointerDown={e => e.stopPropagation()} 
@@ -197,7 +197,7 @@ const EditableNumber = memo(({
                     transition={{ duration: 0.3 }}
                     className={`
                         relative z-50 w-8 h-8 text-center rounded-lg border-2 outline-none text-xs font-black shadow-lg transition-all
-                        ${isError ? 'border-rose-600 text-rose-600 shadow-rose-500/30' : 'bg-white dark:bg-black/80 text-slate-800 dark:text-white'}
+                        ${isError ? 'border-rose-600 text-rose-600 shadow-rose-500/30' : 'bg-white dark:bg-black/80 text-slate-900 dark:text-white border-indigo-500'}
                     `}
                     value={val} 
                     onChange={e => { 
@@ -233,7 +233,7 @@ const EditableNumber = memo(({
     return (
         <button 
             onClick={handleStart} onPointerDown={e => e.stopPropagation()}
-            className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black border transition-all flex-shrink-0 ${number ? 'bg-white/80 dark:bg-white/5 text-slate-800 dark:text-white border-transparent shadow-sm' : 'bg-transparent text-slate-300 dark:text-slate-600 border-transparent hover:border-slate-300 hover:text-slate-400'}`}
+            className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black border transition-all flex-shrink-0 ${number ? 'bg-slate-200 dark:bg-white/5 text-slate-800 dark:text-white border-transparent shadow-sm' : 'bg-transparent text-slate-300 dark:text-slate-600 border-transparent hover:border-slate-300 hover:text-slate-400'}`}
         >
             {number || <Hash size={12} />}
         </button>
@@ -309,7 +309,7 @@ export const PlayerCard = memo(({
   const dragClass = `bg-white dark:bg-slate-800 border-2 border-indigo-500 shadow-2xl z-50 ring-4 ring-indigo-500/20`;
   
   // Base style for normal items (Glass effect)
-  const baseClass = `bg-white/60 dark:bg-white/[0.04] hover:bg-white/80 dark:hover:bg-white/[0.08] border-transparent hover:border-black/5 dark:hover:border-white/10 transition-all duration-200`;
+  const baseClass = `bg-white/60 dark:bg-white/[0.04] hover:bg-white/80 dark:hover:bg-white/[0.08] border-transparent hover:border-slate-300 dark:hover:border-white/10 transition-all duration-200`;
 
   // Role Tint: If a role is active, use the role-specific style instead of baseClass
   const roleStyleClass = ROLE_STYLES[activeRole];
@@ -381,7 +381,7 @@ export const PlayerCard = memo(({
                 <EditableTitle 
                     name={player.name} 
                     onSave={(v) => onUpdatePlayer(player.id, { name: v })} 
-                    className={`text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100 leading-tight`} 
+                    className={`text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight`} 
                 />
                 
                 {/* CAREER STATS PREVIEW - Only show if Linked */}

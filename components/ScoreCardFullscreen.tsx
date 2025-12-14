@@ -62,11 +62,11 @@ const ScoreNumberDisplay = memo(({
                     ${haloColorClass}
                     justify-self-center self-center
                     mix-blend-multiply dark:mix-blend-screen
-                    blur-[100px] will-change-[transform,opacity]
+                    blur-[120px] will-change-[transform,opacity]
                 `}
                 style={{ 
-                    width: '1.2em', 
-                    height: '1.2em',
+                    width: '1.4em', 
+                    height: '1.4em',
                     transform: 'translate3d(0,0,0)'
                 }}
                 animate={
@@ -74,7 +74,7 @@ const ScoreNumberDisplay = memo(({
                     ? { scale: 1.1, opacity: 0.6 } 
                     : isCritical 
                         ? { 
-                            scale: [1, 1.2, 1],
+                            scale: [1, 1.25, 1],
                             opacity: isMatchPoint ? [0.6, 0.9, 0.6] : [0.4, 0.7, 0.4],
                         }
                         : { 
@@ -195,7 +195,7 @@ export const ScoreCardFullscreen: React.FC<ScoreCardFullscreenProps> = memo(({
   
   const textEffectClass = useMemo(() => {
     // Stronger Drop Shadow for better contrast against glow
-    if (isMatchPoint) return 'drop-shadow-[0_0_40px_rgba(251,191,36,0.8)]'; 
+    if (isMatchPoint) return 'drop-shadow-[0_0_60px_rgba(251,191,36,0.9)]'; 
     return ''; 
   }, [isMatchPoint]);
 

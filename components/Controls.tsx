@@ -4,6 +4,7 @@ import { RotateCcw, ArrowLeftRight, Settings, Users, Undo2, Maximize2, History, 
 import { useTranslation } from '../contexts/LanguageContext';
 import { motion } from 'framer-motion';
 import { useCollider } from '../hooks/useCollider';
+import { liquidSpring } from '../utils/animations';
 
 interface ControlsProps {
   onUndo: () => void;
@@ -58,7 +59,12 @@ export const Controls: React.FC<ControlsProps> = memo(({
   const controlsRef = useCollider('controls-bar'); 
 
   return (
-    <div className="w-full flex justify-center px-2 sm:px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-safe">
+    <motion.div 
+        className="w-full flex justify-center px-2 sm:px-4 pb-safe"
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.1, ...liquidSpring }}
+    >
       <div 
         ref={controlsRef}
         className="
@@ -107,6 +113,6 @@ export const Controls: React.FC<ControlsProps> = memo(({
 
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 });

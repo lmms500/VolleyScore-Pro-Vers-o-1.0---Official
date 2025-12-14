@@ -25,7 +25,8 @@ export const Modal: React.FC<ModalProps> = ({
   maxWidth = 'max-w-md',
   showCloseButton = true,
   persistent = false,
-  backdropClassName = "bg-black/40 dark:bg-[#000000]/60 backdrop-blur-md",
+  // Premium Backdrop: Darker, heavy blur for focus
+  backdropClassName = "bg-slate-950/60 dark:bg-[#000]/80 backdrop-blur-xl",
   zIndex = "z-[60]"
 }) => {
   const [mounted, setMounted] = useState(false);
@@ -54,7 +55,7 @@ export const Modal: React.FC<ModalProps> = ({
           exit={{ opacity: 0, pointerEvents: 'none' }}
           transition={{ duration: 0.3 }}
         >
-          {/* Backdrop with Blur */}
+          {/* Backdrop */}
           <motion.div 
             className={`absolute inset-0 ${backdropClassName}`}
             initial="hidden"
@@ -65,16 +66,16 @@ export const Modal: React.FC<ModalProps> = ({
             style={{ willChange: 'opacity' }}
           />
           
-          {/* Container - Neo-Glass Premium */}
+          {/* Container - Ultra Premium Specs */}
           <motion.div 
             className={`
               relative w-full ${maxWidth} 
-              bg-white/80 dark:bg-[#0f172a]/70 
-              backdrop-blur-xl 
-              border border-white/40 dark:border-white/10 
-              rounded-3xl shadow-2xl shadow-black/20
+              bg-[#ffffff]/95 dark:bg-[#0f172a]/95 
+              backdrop-blur-3xl 
+              border border-white/50 dark:border-white/10 
+              rounded-[2.5rem] shadow-2xl shadow-black/30
               overflow-hidden flex flex-col max-h-[85vh]
-              ring-1 ring-white/30 dark:ring-white/5
+              ring-1 ring-white/50 dark:ring-white/5
               z-10
             `}
             initial="hidden"
@@ -83,21 +84,29 @@ export const Modal: React.FC<ModalProps> = ({
             variants={modalVariants}
             style={{ willChange: 'transform, opacity, filter' }}
           >
-            {/* Header - Minimalist */}
-            <div className="px-6 pt-5 pb-3 flex justify-between items-center bg-transparent z-10 shrink-0">
-              <h2 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.2em] opacity-80 pl-1">{title}</h2>
+            {/* Header - More breathing room */}
+            <div className="px-8 pt-8 pb-4 flex justify-between items-center bg-transparent z-10 shrink-0">
+              <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-[0.2em] opacity-90 pl-1 drop-shadow-sm">
+                {title}
+              </h2>
               {showCloseButton && (
                 <button 
                   onClick={onClose} 
-                  className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-slate-400 hover:text-slate-800 dark:hover:text-white active:scale-95"
+                  className="
+                    p-3 rounded-full 
+                    bg-slate-100/80 dark:bg-white/5 
+                    hover:bg-slate-200 dark:hover:bg-white/10 
+                    text-slate-400 hover:text-slate-900 dark:hover:text-white 
+                    transition-all active:scale-95 border border-transparent hover:border-slate-200 dark:hover:border-white/10
+                  "
                 >
-                  <X size={18} />
+                  <X size={20} strokeWidth={2.5} />
                 </button>
               )}
             </div>
             
-            {/* Content Area */}
-            <div className="p-6 pt-0 overflow-y-auto custom-scrollbar text-slate-700 dark:text-slate-300">
+            {/* Content Area - Spacious Padding */}
+            <div className="px-8 pb-8 pt-2 overflow-y-auto custom-scrollbar text-slate-600 dark:text-slate-300 leading-relaxed">
               {children}
             </div>
           </motion.div>

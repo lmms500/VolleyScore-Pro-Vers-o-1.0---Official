@@ -1,3 +1,4 @@
+
 import React, { memo, useState, useCallback } from 'react';
 import { Team, TeamId, SkillType, GameConfig, TeamColor } from '../types';
 import { Volleyball, Zap, Timer, Skull, TrendingUp, Trophy } from 'lucide-react';
@@ -139,7 +140,7 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
         transition={{ type: "spring", stiffness: 120, damping: 20, mass: 1 }}
         className={`
             flex flex-col flex-1 relative h-full select-none
-            rounded-2xl min-h-0 my-2
+            rounded-[2.5rem] min-h-0 my-2
             !bg-transparent !border-none !shadow-none !ring-0
             transition-[opacity,filter] duration-300
             ${isLocked ? 'opacity-40 grayscale' : ''} 
@@ -152,8 +153,8 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
       
       <div className="flex flex-col h-full w-full relative z-10 py-1 px-2 justify-between items-center overflow-visible">
         
-        {/* HEADER: Sets & Name */}
-        <div className="flex flex-col items-center justify-center w-full flex-none order-1 mt-2 space-y-1 relative z-30">
+        {/* HEADER: Sets & Name (Flex-none: Stays at top) */}
+        <div className="flex flex-col items-center justify-center w-full flex-none mt-4 space-y-2 relative z-30">
             <div className="flex gap-2 mb-1">
                 {[...Array(setsNeededToWin)].map((_, i) => (
                     <motion.div 
@@ -165,7 +166,7 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
                             borderColor: i < setsWon ? 'transparent' : 'currentColor'
                         }}
                         className={`
-                            w-1.5 h-1.5 rounded-full border transition-all duration-500
+                            w-2 h-2 rounded-full border transition-all duration-500
                             ${i < setsWon ? `${theme.halo} shadow-[0_0_8px_currentColor]` : 'border-slate-300 dark:border-slate-700 opacity-40'}
                         `} 
                     />
@@ -174,7 +175,7 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
 
             <motion.div 
                 layout 
-                className="w-full flex items-center justify-center gap-2 cursor-pointer group px-1 py-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors max-w-full overflow-hidden"
+                className="w-full flex items-center justify-center gap-2 cursor-pointer group px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors max-w-full overflow-hidden"
                 onClick={(e) => { 
                     e.stopPropagation(); 
                     onSetServer(); 
@@ -185,7 +186,7 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
                 {team.logo && (
                     <motion.div 
                         layout="position"
-                        className="w-6 h-6 rounded-full overflow-hidden border border-black/10 dark:border-white/10 flex-shrink-0 bg-white/50 dark:bg-white/5"
+                        className="w-8 h-8 rounded-full overflow-hidden border border-black/10 dark:border-white/10 flex-shrink-0 bg-white/50 dark:bg-white/5 shadow-sm"
                     >
                         <img src={team.logo} alt="" className="w-full h-full object-cover" />
                     </motion.div>
@@ -195,7 +196,7 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
                 <motion.h2 
                     ref={headerRef}
                     layout="position"
-                    className="font-black uppercase text-center text-base md:text-xl text-slate-800 dark:text-slate-200 tracking-wider truncate min-w-0"
+                    className="font-black uppercase text-center text-lg md:text-2xl text-slate-800 dark:text-slate-200 tracking-tight truncate min-w-0"
                 >
                     {team?.name || ''}
                 </motion.h2>
@@ -214,36 +215,19 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
                           damping: 25, 
                           mass: 0.8 
                       }}
-                      className="flex-shrink-0 origin-center ml-0.5"
+                      className="flex-shrink-0 origin-center ml-1"
                     >
-                        <Volleyball size={16} className={`${theme.text} ${theme.textDark}`} strokeWidth={2.5} />
+                        <Volleyball size={18} className={`${theme.text} ${theme.textDark}`} strokeWidth={2.5} />
                     </motion.div>
                   )}
                 </AnimatePresence>
             </motion.div>
         </div>
 
-        {/* BADGE AREA */}
-        <div className="order-2 min-h-[24px] flex items-center justify-center w-full my-1 flex-none">
-            <AnimatePresence mode="wait">
-                {badgeConfig && (
-                    <motion.div 
-                        ref={badgeRef}
-                        variants={stampVariants}
-                        initial="hidden" animate="visible" exit="exit"
-                        className={`px-3 py-1 rounded-xl border backdrop-blur-md font-bold uppercase tracking-widest text-[9px] flex items-center gap-1.5 shadow-sm ${badgeConfig.className}`}
-                    >
-                        <badgeConfig.icon size={10} strokeWidth={3} />
-                        {badgeConfig.text}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-
-        {/* MAIN SCORE INTERACTIVE AREA */}
+        {/* MAIN SCORE INTERACTIVE AREA (Flex-1: Takes all middle space) */}
         <div 
             ref={containerRef}
-            className="relative order-3 flex flex-col justify-center items-center w-full flex-1 min-h-0 cursor-pointer overflow-visible isolate"
+            className="relative flex flex-col justify-center items-center w-full flex-1 min-h-0 cursor-pointer overflow-visible isolate"
             style={{ touchAction: 'none' }}
             {...gestureHandlers}
         >
@@ -269,6 +253,24 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
             </AnimatePresence>
 
             <div className="grid place-items-center w-full h-full relative z-10 pointer-events-none overflow-visible">
+                
+                {/* BADGE (Absolute Top Center of Score Area) */}
+                <div className="absolute top-2 w-full flex justify-center z-40 pointer-events-none">
+                    <AnimatePresence mode="wait">
+                        {badgeConfig && (
+                            <motion.div 
+                                ref={badgeRef}
+                                variants={stampVariants}
+                                initial="hidden" animate="visible" exit="exit"
+                                className={`px-3 py-1 rounded-full border backdrop-blur-md font-bold uppercase tracking-widest text-[9px] flex items-center gap-1.5 shadow-sm ${badgeConfig.className}`}
+                            >
+                                <badgeConfig.icon size={10} strokeWidth={3} />
+                                {badgeConfig.text}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
                 {/* HALO BACKGROUND - Now Pulses on Match/Set Point */}
                 <motion.div 
                     layout 
@@ -282,8 +284,8 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
                     style={{ 
                         width: 'auto',
                         height: '70%', 
-                        minHeight: '100px',
-                        maxHeight: '280px'
+                        minHeight: '120px',
+                        maxHeight: '300px'
                     }}
                     initial={false}
                     animate={config.lowGraphics ? {
@@ -300,13 +302,13 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
                     }}
                 />
                 
-                {/* ANIMATED NUMBER */}
+                {/* ANIMATED NUMBER - Centered vertically in available space */}
                 <div className="col-start-1 row-start-1 relative z-20 w-full flex justify-center items-center h-full overflow-visible">
                     <motion.div
                         layout
                         variants={config.lowGraphics ? undefined : pulseHeartbeat}
                         animate={(!config.lowGraphics && isCritical) ? "pulse" : "idle"}
-                        className="flex items-center justify-center w-full overflow-visible"
+                        className="flex items-center justify-center w-full overflow-visible pt-4" // slight top padding to clear badge
                     >
                         {/* COLLIDER ON TEXT ONLY: Confetti flows through the gaps around the number */}
                         <div ref={numberRef} className="w-fit mx-auto relative">
@@ -314,7 +316,7 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
                                 value={score}
                                 className={`
                                     font-black tracking-tighter outline-none select-none
-                                    text-[20vw] sm:text-[15vw] md:text-9xl landscape:text-7xl landscape:xl:text-9xl leading-none
+                                    text-[22vw] sm:text-[18vw] md:text-9xl landscape:text-8xl landscape:xl:text-9xl leading-none
                                     text-slate-900 dark:text-white
                                     ${isMatchPoint ? 'drop-shadow-[0_0_30px_rgba(251,191,36,0.8)]' : ''}
                                 `}
@@ -325,8 +327,8 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
             </div>
         </div>
 
-        {/* FOOTER: Timeouts */}
-        <div className="order-4 w-full flex justify-center pb-2 flex-none">
+        {/* FOOTER: Timeouts (Flex-none: Stays at bottom) */}
+        <div className="w-full flex justify-center pb-4 flex-none mt-2">
            <button 
              ref={footerRef} 
              type="button"
@@ -339,19 +341,19 @@ export const ScoreCardNormal: React.FC<ScoreCardNormalProps> = memo(({
              }}
              disabled={timeoutsExhausted}
              className={`
-                flex items-center gap-3 px-4 py-2 rounded-xl transition-all border border-transparent
+                flex items-center gap-3 px-5 py-2.5 rounded-2xl transition-all border border-transparent
                 ${timeoutsExhausted ? 'opacity-50 grayscale' : 'hover:bg-white/50 dark:hover:bg-white/10 hover:border-black/5 dark:hover:border-white/5 active:scale-95'}
              `}
            >
-              <Timer size={14} className="text-slate-400 dark:text-slate-500" strokeWidth={2} />
-              <div className="flex gap-1.5">
+              <Timer size={16} className="text-slate-400 dark:text-slate-500" strokeWidth={2.5} />
+              <div className="flex gap-2">
                 {[1, 2].map(t => (
                     <div 
                       key={t} 
                       className={`
-                        w-4 h-1.5 rounded-full transition-all duration-300
+                        w-5 h-2 rounded-full transition-all duration-300
                         ${t > timeouts 
-                            ? `${theme.halo} shadow-[0_0_5px_currentColor]` 
+                            ? `${theme.halo} shadow-[0_0_8px_currentColor]` 
                             : 'bg-slate-200 dark:bg-slate-700'
                         }
                       `} 

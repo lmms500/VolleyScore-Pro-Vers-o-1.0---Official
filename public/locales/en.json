@@ -1,4 +1,3 @@
-
 {
   "app": {
     "loading": "Loading..."
@@ -448,62 +447,78 @@
     "start": "Start",
     "welcome": {
       "title": "VolleyScore Pro",
-      "desc": "The ultimate volleyball companion. Pro scoring, squad management, and advanced stats.",
-      "optIn": "Skip anytime."
+      "desc": "The definitive scoring companion. Gestures, Voice Control, and Pro Stats.",
+      "optIn": "Skip tutorial."
     },
     "gestures": {
       "title": "Smart Gestures",
-      "desc": "Tap anywhere to add points. Swipe down to subtract or undo. It's fluid and fast."
+      "desc": "Tap anywhere on a team's side to score (+1). Swipe DOWN to subtract (-1). Long press to edit scores."
+    },
+    "main": {
+      "config": {
+        "title": "Match Setup",
+        "desc": "Select 'Indoor' or 'Beach' presets in Settings. Configure sets (1/3/5) and tie-break rules before starting."
+      },
+      "narrator": {
+        "title": "Audio Narrator",
+        "desc": "The app speaks the score, server, and critical moments like 'Match Point' automatically."
+      }
     },
     "features": {
       "title": "Full Control",
-      "desc": "Manage rotations, timeouts, substitutions, and detailed match history in one place."
+      "desc": "Manage timeouts, sides, and access the Team Manager from the floating menu bar."
+    },
+    "voice": {
+        "title": "Voice Commands",
+        "desc": "Tap the mic icon. Say 'Point Home', 'Timeout', or 'Side Out' to score hands-free."
     },
     "manager": {
         "intro": {
-            "title": "Squad Manager",
-            "desc": "The heart of your teams. Manage rosters, queues, and player profiles here."
+            "title": "Team Manager",
+            "desc": "Your command center. Organize lineups, manage the bench, and handle rotations."
         },
-        "edit": {
-            "title": "Customization",
-            "desc": "Tap team names to edit. Tap the color circle to change team identity."
-        },
-        "roster": {
+        "structure": {
             "title": "Drag & Drop",
-            "desc": "Drag players between the Court, Bench, and Queue. The first 6 are active players."
+            "desc": "Drag players between Court, Bench, and Queue. The top 6 are active. Excess players form the Bench."
+        },
+        "subs": {
+            "title": "Substitutions",
+            "desc": "Tap the 'Swap' icon. Tap a player on Court (OUT), then a player on the Bench (IN) to swap."
         },
         "profiles": {
             "title": "Player Profiles",
-            "desc": "Create profiles to track long-term stats (Kills, Blocks, Aces) across matches."
+            "desc": "Link players to Profiles to track career stats (Wins, Kills, Aces) across different matches."
         },
         "rotation": {
-            "title": "Rotations",
-            "desc": "In 'Standard Mode', winners stay on court. Losers move to the queue automatically."
+            "title": "Auto Rotation",
+            "desc": "Use 'Standard Mode' for Winner-Stays or 'Balanced Mode' to mix teams by skill level."
         },
         "balance": {
             "title": "Skill Balance",
-            "desc": "Use 'Balanced Mode' to let the AI draft teams based on player skill levels."
+            "desc": "Assign a Skill Level (1-10) to players. The AI will generate fair teams automatically."
+        },
+        "batch": {
+            "title": "Batch Input",
+            "desc": "Paste a list of names (one per line) in the Batch tab. Format: 'Name 8' to set skill level."
         }
     },
     "history": {
         "summary": {
-            "title": "Match Summary",
-            "desc": "Review sets, final scores, and duration. Tap to expand set details."
+            "title": "Match History",
+            "desc": "View past matches, sets, and duration. Tap any match to see the full analytics report."
         },
         "timeline": {
-            "title": "Momentum",
-            "desc": "Visualize the game flow with the momentum graph. See exactly when the tide turned."
-        },
-        "analysis": {
-            "title": "Deep Analysis",
-            "desc": "View aggregated stats for kills, blocks, and aces. Identify your MVPs."
+            "title": "Momentum Graph",
+            "desc": "Visualize the game flow. See exactly when the momentum shifted in the timeline view."
         },
         "stats": "Scout Mode",
-        "statsDesc": "Enable to log Kills/Blocks.",
-        "statsFeedback": "Visual confirmation appears when stats are saved.",
+        "statsDesc": "Enable in Settings to log specific actions (Kill, Block, Ace) for each point.",
+        "statsFeedback": "When scoring, select the Player and Skill. The system updates their career stats instantly.",
         "feedback": "Feedback",
-        "export": "Export",
-        "exportDesc": "Share as Image/CSV."
+        "export": {
+            "title": "Export Data",
+            "desc": "Share match results as social images or export raw CSV/JSON data for analysis."
+        }
     },
     "install": {
       "title": "Install",

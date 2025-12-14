@@ -2,7 +2,7 @@
 import React from 'react';
 import { 
   Trophy, Hand, Users, Edit3, UserCircle, RefreshCw, Scale, 
-  Layout, MousePointerClick, History, FileText, PieChart
+  Layout, MousePointerClick, History, FileText, PieChart, Activity, Mic, List, Settings, Volume2, ArrowRightLeft, Layers
 } from 'lucide-react';
 
 export interface TutorialStep {
@@ -16,7 +16,7 @@ export interface TutorialStep {
 }
 
 export const TUTORIAL_SCENARIOS: Record<string, TutorialStep[]> = {
-  // A. ONBOARDING (APP FIRST OPEN)
+  // A. ONBOARDING (PANORAMA GERAL)
   main: [
     { 
       id: 'welcome', 
@@ -24,7 +24,7 @@ export const TUTORIAL_SCENARIOS: Record<string, TutorialStep[]> = {
       descKey: 'tutorial.welcome.desc', 
       icon: Trophy, 
       color: 'indigo',
-      visualId: 'welcome_hero' 
+      visualId: 'app_logo' 
     },
     { 
       id: 'gestures', 
@@ -35,16 +35,32 @@ export const TUTORIAL_SCENARIOS: Record<string, TutorialStep[]> = {
       visualId: 'gestures'
     },
     { 
-      id: 'features', 
-      titleKey: 'tutorial.features.title', 
-      descKey: 'tutorial.features.desc', 
-      icon: Layout, 
-      color: 'emerald',
-      visualId: 'match_score' 
+      id: 'config', 
+      titleKey: 'tutorial.main.config.title', 
+      descKey: 'tutorial.main.config.desc', 
+      icon: Settings, 
+      color: 'slate',
+      visualId: 'settings_config' 
+    },
+    {
+      id: 'voice',
+      titleKey: 'tutorial.voice.title',
+      descKey: 'tutorial.voice.desc',
+      icon: Mic,
+      color: 'sky',
+      visualId: 'voice_control'
+    },
+    {
+      id: 'narrator',
+      titleKey: 'tutorial.main.narrator.title',
+      descKey: 'tutorial.main.narrator.desc',
+      icon: Volume2,
+      color: 'pink',
+      visualId: 'audio_narrator'
     }
   ],
 
-  // B. TEAM MANAGER (DEEP DIVE)
+  // B. TEAM MANAGER (DETALHADO)
   manager: [
     { 
       id: 'intro', 
@@ -55,20 +71,12 @@ export const TUTORIAL_SCENARIOS: Record<string, TutorialStep[]> = {
       visualId: 'team_management'
     },
     { 
-      id: 'edit', 
-      titleKey: 'tutorial.manager.edit.title', 
-      descKey: 'tutorial.manager.edit.desc', 
-      icon: Edit3, 
-      color: 'cyan',
-      visualId: 'team_customization'
-    },
-    { 
-      id: 'roster', 
-      titleKey: 'tutorial.manager.roster.title', 
-      descKey: 'tutorial.manager.roster.desc', 
-      icon: MousePointerClick, 
-      color: 'amber',
-      visualId: 'team_management' // Reusing intent of moving players, but non-consecutive
+      id: 'structure', 
+      titleKey: 'tutorial.manager.structure.title', 
+      descKey: 'tutorial.manager.structure.desc', 
+      icon: Layers, 
+      color: 'slate',
+      visualId: 'drag_and_drop'
     },
     { 
       id: 'profiles', 
@@ -79,24 +87,40 @@ export const TUTORIAL_SCENARIOS: Record<string, TutorialStep[]> = {
       visualId: 'player_profile'
     },
     { 
+      id: 'subs', 
+      titleKey: 'tutorial.manager.subs.title', 
+      descKey: 'tutorial.manager.subs.desc', 
+      icon: ArrowRightLeft, 
+      color: 'emerald',
+      visualId: 'substitutions'
+    },
+    { 
       id: 'rotation', 
       titleKey: 'tutorial.manager.rotation.title', 
       descKey: 'tutorial.manager.rotation.desc', 
       icon: RefreshCw, 
       color: 'rose',
-      visualId: 'rotation'
+      visualId: 'rotations'
     },
     { 
       id: 'balance', 
       titleKey: 'tutorial.manager.balance.title', 
       descKey: 'tutorial.manager.balance.desc', 
       icon: Scale, 
-      color: 'emerald',
-      visualId: 'skill_balance'
+      color: 'amber',
+      visualId: 'skill_balance_v2'
+    },
+    {
+      id: 'batch',
+      titleKey: 'tutorial.manager.batch.title', 
+      descKey: 'tutorial.manager.batch.desc', 
+      icon: List,
+      color: 'cyan',
+      visualId: 'batch_input'
     }
   ],
 
-  // C. HISTORY (DATA ANALYSIS)
+  // C. HISTORY (ANÁLISE DE DADOS)
   history: [
     { 
       id: 'summary', 
@@ -115,12 +139,20 @@ export const TUTORIAL_SCENARIOS: Record<string, TutorialStep[]> = {
       visualId: 'history_timeline'
     },
     { 
-      id: 'analysis', 
-      titleKey: 'tutorial.history.analysis.title', 
-      descKey: 'tutorial.history.analysis.desc', 
+      id: 'stats', 
+      titleKey: 'tutorial.history.stats', 
+      descKey: 'tutorial.history.statsDesc', 
       icon: PieChart, 
       color: 'amber',
-      visualId: 'scout_mode' // Scout/Analysis view
+      visualId: 'scout_mode_advanced'
+    },
+    {
+      id: 'export',
+      titleKey: 'tutorial.history.export.title',
+      descKey: 'tutorial.history.export.desc', 
+      icon: Activity,
+      color: 'emerald',
+      visualId: 'export_data'
     }
   ]
 };
