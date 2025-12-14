@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -44,6 +44,8 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
   const [customText, setCustomText] = useState('');
   const [activeCategory, setActiveCategory] = useState<keyof typeof EMOJI_CATEGORIES>('sports');
 
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
   // Initialization Logic
   useEffect(() => {
       if (isOpen) {
@@ -55,6 +57,9 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
           if (initialName && !customText) {
              setCustomText(getInitials(initialName));
           }
+          
+          // Auto-Focus Name Input on Open
+          setTimeout(() => nameInputRef.current?.focus(), 50);
       }
   }, [isOpen, initialName, initialNumber, initialSkill, initialRole]);
 
@@ -142,13 +147,13 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
             <div className="flex p-1 bg-slate-100 dark:bg-white/5 rounded-2xl border border-black/5 dark:border-white/5 w-full max-w-[200px]">
                 <button 
                     onClick={() => setMode('emoji')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${mode === 'emoji' ? 'bg-white dark:bg-white/10 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${mode === 'emoji' ? 'bg-white dark:bg-white/10 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     <Smile size={14} /> Emoji
                 </button>
                 <button 
                     onClick={() => { setMode('text'); if(!customText) setCustomText(getInitials(name)); }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${mode === 'text' ? 'bg-white dark:bg-white/10 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${mode === 'text' ? 'bg-white dark:bg-white/10 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     <Type size={14} /> Text
                 </button>
@@ -176,7 +181,7 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
                                     key={emoji}
                                     onClick={() => setSelectedEmoji(emoji)}
                                     className={`
-                                        w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all duration-200 border
+                                        w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all duration-200 border active:scale-90
                                         ${selectedEmoji === emoji 
                                             ? 'bg-white dark:bg-white/10 border-indigo-500 shadow-lg shadow-indigo-500/20 scale-110' 
                                             : 'bg-slate-50 dark:bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:scale-105'}
@@ -198,6 +203,8 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
                     <UserCircle2 size={18} strokeWidth={2} />
                 </div>
                 <input 
+                    ref={nameInputRef}
+                    autoFocus
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={t('profile.namePlaceholder')}
@@ -260,7 +267,7 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
                             key={r.id}
                             onClick={() => setRole(isActive ? 'none' : r.id)}
                             className={`
-                                flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 transition-all duration-200 h-16
+                                flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 transition-all duration-200 h-16 active:scale-95
                                 ${isActive ? r.color + ' ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 bg-opacity-20 border-current' : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10'}
                             `}
                         >
@@ -274,8 +281,8 @@ export const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({
 
         {/* --- 5. ACTIONS --- */}
         <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-200 dark:border-white/5">
-            <Button variant="secondary" className="bg-slate-100 dark:bg-white/5 border-transparent h-11" onClick={onClose}>{t('common.cancel')}</Button>
-            <Button onClick={handleSave} className="bg-indigo-600 text-white shadow-xl shadow-indigo-500/20 h-11">
+            <Button variant="secondary" className="bg-slate-100 dark:bg-white/5 border-transparent h-11 active:scale-95" onClick={onClose}>{t('common.cancel')}</Button>
+            <Button onClick={handleSave} className="bg-indigo-600 text-white shadow-xl shadow-indigo-500/20 h-11 active:scale-95">
                 <Save size={16} /> {t(title === "Create Profile" ? 'profile.create' : 'profile.save')}
             </Button>
         </div>

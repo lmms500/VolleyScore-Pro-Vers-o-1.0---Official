@@ -61,14 +61,11 @@ export const RichTutorialModal: React.FC<RichTutorialModalProps> = ({
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [direction, setDirection] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  
-  // FIX: Animation Auto-Start Logic
   const [isReady, setIsReady] = useState(false);
 
   const steps = useMemo(() => TUTORIAL_SCENARIOS[tutorialKey] || [], [tutorialKey]);
   const currentStep = steps[currentStepIndex];
 
-  // Reset state when opening
   useEffect(() => {
     if (isOpen) {
       setCurrentStepIndex(0);
@@ -78,7 +75,6 @@ export const RichTutorialModal: React.FC<RichTutorialModalProps> = ({
     }
   }, [isOpen, tutorialKey]);
 
-  // Trigger animation start delay whenever step changes
   useEffect(() => {
       setIsReady(false);
       const timer = setTimeout(() => {
@@ -114,8 +110,6 @@ export const RichTutorialModal: React.FC<RichTutorialModalProps> = ({
   };
 
   const colorTheme = resolveTheme(currentStep.color);
-  
-  // Calculate effective pause state
   const effectiveIsPaused = isPaused || !isReady;
 
   return createPortal(
@@ -123,9 +117,8 @@ export const RichTutorialModal: React.FC<RichTutorialModalProps> = ({
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 isolate">
           
-          {/* Backdrop - Darker for focus */}
           <motion.div
-            className="absolute inset-0 bg-slate-900/70 backdrop-blur-md"
+            className="absolute inset-0 bg-slate-900/80 backdrop-blur-md"
             variants={overlayVariants}
             initial="hidden"
             animate="visible"
@@ -133,13 +126,13 @@ export const RichTutorialModal: React.FC<RichTutorialModalProps> = ({
             onClick={handleSkip}
           />
 
-          {/* Main Card */}
           <motion.div
             className="
-                relative w-full max-w-[360px] 
+                relative w-full 
+                max-w-[360px] landscape:max-w-3xl landscape:h-[85vh]
                 bg-white dark:bg-[#0f172a] 
                 rounded-[2.5rem] shadow-2xl 
-                overflow-hidden flex flex-col 
+                overflow-hidden flex flex-col landscape:flex-row
                 ring-1 ring-white/20 dark:ring-white/10
             "
             variants={modalVariants}
@@ -149,9 +142,8 @@ export const RichTutorialModal: React.FC<RichTutorialModalProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             
-            {/* Controls Layer */}
+            {/* Controls Layer - Repositioned for Landscape */}
             <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
-               {/* Play/Pause Control */}
                <button 
                 onClick={togglePause}
                 className="p-2.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white bg-white/20 hover:bg-white/40 backdrop-blur-sm transition-colors"
@@ -160,7 +152,6 @@ export const RichTutorialModal: React.FC<RichTutorialModalProps> = ({
                 {isPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}
               </button>
 
-              {/* Close/Skip */}
               <button 
                 onClick={handleSkip}
                 className="p-2.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white bg-white/20 hover:bg-white/40 backdrop-blur-sm transition-colors"
@@ -169,103 +160,111 @@ export const RichTutorialModal: React.FC<RichTutorialModalProps> = ({
               </button>
             </div>
 
-            {/* Dynamic Content Container */}
-            <div className="w-full flex flex-col">
-              <AnimatePresence initial={false} custom={direction} mode="wait">
-                <motion.div
-                  key={currentStep.id} // CRITICAL: Key must be step ID
-                  custom={direction}
-                  variants={contentVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  className="w-full flex flex-col"
-                >
-                  
-                  {/* 1. HERO VISUAL AREA - Slightly Taller */}
-                  <div className="h-64 w-full relative overflow-hidden bg-slate-50 dark:bg-white/5 border-b border-black/5 dark:border-white/5">
-                      <TutorialVisual 
-                        visualId={currentStep.visualId || 'app_logo'} 
-                        colorTheme={colorTheme} 
-                        isPaused={effectiveIsPaused} 
-                      />
-                  </div>
-
-                  {/* 2. Text Content Area */}
-                  <div className="px-8 pt-8 pb-4 flex flex-col items-center text-center min-h-[180px]">
-                    
-                    {/* Progress Dots */}
-                    <div className="flex justify-center gap-2 mb-6 opacity-80">
-                        {steps.map((_, idx) => (
-                        <div 
-                            key={idx}
-                            className={`
-                            h-1.5 rounded-full transition-all duration-300
-                            ${idx === currentStepIndex 
-                                ? `w-8 ${colorTheme.halo}` 
-                                : 'w-1.5 bg-slate-200 dark:bg-white/10'}
-                            `}
-                        />
-                        ))}
-                    </div>
-
-                    <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tight mb-4 leading-none">
-                      {t(currentStep.titleKey)}
-                    </h2>
-                    
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs">
-                        {t(currentStep.descKey)}
-                    </p>
-                    
-                    {/* Welcome Opt-In */}
-                    {currentStep.id === 'welcome' && (
-                        <p className="mt-4 text-[10px] text-slate-400 dark:text-slate-600 italic">
-                            {t('tutorial.welcome.optIn')}
-                        </p>
-                    )}
-                  </div>
-
-                </motion.div>
-              </AnimatePresence>
-            </div>
-
-            {/* Footer Navigation */}
-            <div className="px-8 pb-8 pt-4 bg-white dark:bg-[#0f172a] z-10 relative flex flex-col gap-3">
-              
-                <div className="flex gap-4">
-                    {/* Back Button */}
-                    {currentStepIndex > 0 ? (
-                        <button 
-                            onClick={handleBack}
-                            className="p-4 rounded-2xl font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+            {/* SPLIT LAYOUT CONTAINER */}
+            <div className="flex flex-col landscape:flex-row w-full h-full">
+                
+                {/* 1. HERO VISUAL AREA (Left in Landscape) */}
+                <div className="h-64 landscape:h-full landscape:w-1/2 w-full relative overflow-hidden bg-slate-50 dark:bg-white/5 border-b landscape:border-b-0 landscape:border-r border-black/5 dark:border-white/5 flex items-center justify-center">
+                    <AnimatePresence initial={false} custom={direction} mode="wait">
+                        <motion.div
+                            key={`vis-${currentStep.id}`}
+                            custom={direction}
+                            variants={contentVariants}
+                            initial="enter"
+                            animate="center"
+                            exit="exit"
+                            className="w-full h-full absolute inset-0"
                         >
-                            <ChevronLeft size={20} strokeWidth={3} />
-                        </button>
-                    ) : (
-                        <button 
-                            onClick={handleSkip}
-                            className="p-4 rounded-2xl font-bold text-xs uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
-                        >
-                            {t('tutorial.skip')}
-                        </button>
-                    )}
-
-                    {/* Next/Done Button */}
-                    <button 
-                        onClick={handleNext}
-                        className={`
-                            flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95
-                            ${colorTheme.halo.replace('bg-', 'bg-')}
-                        `}
-                    >
-                        {currentStepIndex < steps.length - 1 ? (
-                            <>{t('tutorial.next')} <ChevronRight size={18} strokeWidth={3} /></>
-                        ) : (
-                            <>{t('common.done')} <Check size={18} strokeWidth={3} /></>
-                        )}
-                    </button>
+                            <TutorialVisual 
+                                visualId={currentStep.visualId || 'app_logo'} 
+                                colorTheme={colorTheme} 
+                                isPaused={effectiveIsPaused} 
+                            />
+                        </motion.div>
+                    </AnimatePresence>
                 </div>
 
+                {/* 2. TEXT & NAVIGATION AREA (Right in Landscape) */}
+                <div className="landscape:w-1/2 flex flex-col h-full bg-white dark:bg-[#0f172a] relative z-20">
+                    
+                    <div className="flex-1 flex flex-col items-center justify-center text-center px-8 pt-8 pb-4 landscape:pt-12 overflow-y-auto custom-scrollbar">
+                        <AnimatePresence initial={false} custom={direction} mode="wait">
+                            <motion.div
+                                key={`txt-${currentStep.id}`}
+                                custom={direction}
+                                variants={contentVariants}
+                                initial="enter"
+                                animate="center"
+                                exit="exit"
+                                className="flex flex-col items-center"
+                            >
+                                {/* Progress Dots */}
+                                <div className="flex justify-center gap-2 mb-6 landscape:mb-4 opacity-80">
+                                    {steps.map((_, idx) => (
+                                    <div 
+                                        key={idx}
+                                        className={`
+                                        h-1.5 rounded-full transition-all duration-300
+                                        ${idx === currentStepIndex 
+                                            ? `w-8 ${colorTheme.halo}` 
+                                            : 'w-1.5 bg-slate-200 dark:bg-white/10'}
+                                        `}
+                                    />
+                                    ))}
+                                </div>
+
+                                <h2 className="text-3xl landscape:text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight mb-4 leading-none">
+                                {t(currentStep.titleKey)}
+                                </h2>
+                                
+                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs landscape:max-w-sm">
+                                    {t(currentStep.descKey)}
+                                </p>
+                                
+                                {currentStep.id === 'welcome' && (
+                                    <p className="mt-4 text-[10px] text-slate-400 dark:text-slate-600 italic">
+                                        {t('tutorial.welcome.optIn')}
+                                    </p>
+                                )}
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Footer Navigation (Fixed at bottom of right column) */}
+                    <div className="px-8 pb-8 pt-4 z-10 shrink-0 bg-white dark:bg-[#0f172a] w-full mt-auto">
+                        <div className="flex gap-4">
+                            {currentStepIndex > 0 ? (
+                                <button 
+                                    onClick={handleBack}
+                                    className="p-4 rounded-2xl font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                                >
+                                    <ChevronLeft size={20} strokeWidth={3} />
+                                </button>
+                            ) : (
+                                <button 
+                                    onClick={handleSkip}
+                                    className="p-4 rounded-2xl font-bold text-xs uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                                >
+                                    {t('tutorial.skip')}
+                                </button>
+                            )}
+
+                            <button 
+                                onClick={handleNext}
+                                className={`
+                                    flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95
+                                    ${colorTheme.halo.replace('bg-', 'bg-')}
+                                `}
+                            >
+                                {currentStepIndex < steps.length - 1 ? (
+                                    <>{t('tutorial.next')} <ChevronRight size={18} strokeWidth={3} /></>
+                                ) : (
+                                    <>{t('common.done')} <Check size={18} strokeWidth={3} /></>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
           </motion.div>

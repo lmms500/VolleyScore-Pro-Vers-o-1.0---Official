@@ -10,12 +10,11 @@ interface ScoreTickerProps {
 }
 
 /**
- * ScoreTicker v3.0 (GPU Optimized)
+ * ScoreTicker v3.1 (Polish Edition)
  * 
  * Performance Update:
  * - Added `transform: translateZ(0)` to force hardware acceleration.
- * - Added `backface-visibility: hidden` to prevent flickering on some WebViews.
- * - Added `will-change: transform, opacity` to hint the browser compositor.
+ * - Added `tabular-nums` class to ensure monospaced numeric width (prevents wobble).
  */
 export const ScoreTicker: React.FC<ScoreTickerProps> = memo(({ value, className, style }) => {
   const prevValue = useRef(value);
@@ -34,7 +33,7 @@ export const ScoreTicker: React.FC<ScoreTickerProps> = memo(({ value, className,
 
   return (
     <div 
-        className={`relative inline-flex justify-center items-center ${className}`} 
+        className={`relative inline-flex justify-center items-center tabular-nums ${className}`} 
         style={{ 
             ...style,
             height: '2.5em', 
@@ -45,6 +44,7 @@ export const ScoreTicker: React.FC<ScoreTickerProps> = memo(({ value, className,
             maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
             WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
             overflow: 'visible',
+            fontVariantNumeric: 'tabular-nums', // Enforce monospace numbers
             // HARDWARE ACCELERATION HINT
             willChange: 'transform'
         }}
@@ -57,7 +57,7 @@ export const ScoreTicker: React.FC<ScoreTickerProps> = memo(({ value, className,
           initial="enter"
           animate="center"
           exit="exit"
-          className="block text-center leading-none origin-center absolute inset-0 flex items-center justify-center"
+          className="block text-center leading-none origin-center absolute inset-0 flex items-center justify-center tabular-nums"
           style={{ 
               willChange: "transform, opacity", 
               backfaceVisibility: "hidden",

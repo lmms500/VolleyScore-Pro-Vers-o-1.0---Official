@@ -18,8 +18,8 @@ export const Button: React.FC<ButtonProps> = ({ variant = 'primary', size = 'md'
       if (onClick) onClick(e);
   };
 
-  // Base: Robust flex centering, radius matching new design system
-  const base = "font-inter font-bold rounded-2xl flex items-center justify-center gap-2.5 outline-none focus:none select-none relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 group isolate max-w-full flex-wrap h-auto min-w-[min-content]";
+  // Base: Added active:scale-95 for tactile feedback even if JS motion frame drops
+  const base = "font-inter font-bold rounded-2xl flex items-center justify-center gap-2.5 outline-none focus:none select-none relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed transition-transform duration-100 group isolate max-w-full flex-wrap h-auto min-w-[min-content] active:scale-95";
   
   const variants = {
     // Primary: Deeper gradient simulation, sharper shadow

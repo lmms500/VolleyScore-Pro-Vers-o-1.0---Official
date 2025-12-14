@@ -5,7 +5,6 @@ import { HistoryList } from '../History/HistoryList';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useTutorial } from '../../hooks/useTutorial';
 
-// Lazy load RichTutorialModal
 const RichTutorialModal = lazy(() => import('./RichTutorialModal').then(m => ({ default: m.RichTutorialModal })));
 
 interface HistoryModalProps {
@@ -28,7 +27,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ isOpen, onClose }) =
         isOpen={isOpen} 
         onClose={onClose} 
         title={t('historyList.title')}
-        maxWidth="max-w-2xl"
+        maxWidth="max-w-2xl landscape:max-w-5xl"
     >
         <Suspense fallback={null}>
             {activeTutorial === 'history' && (

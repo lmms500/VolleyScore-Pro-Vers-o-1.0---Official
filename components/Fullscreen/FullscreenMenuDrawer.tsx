@@ -70,7 +70,6 @@ const MenuButton = ({
         text-left
       `}
     >
-      {/* Icon Container */}
       <div className={`
           relative z-10 w-14 h-14 flex items-center justify-center rounded-2xl 
           ${theme.iconBg}
@@ -79,7 +78,6 @@ const MenuButton = ({
           <Icon size={26} strokeWidth={2} />
       </div>
 
-      {/* Text */}
       <div className="flex-1 relative z-10 min-w-0">
           <span className="block text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide mb-1 group-hover:text-slate-900 dark:group-hover:text-white transition-colors truncate">
             {label}
@@ -89,7 +87,6 @@ const MenuButton = ({
           </span>
       </div>
 
-      {/* Chevron */}
       <div className="relative z-10 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-400 transition-colors duration-300 group-hover:translate-x-1">
           <ChevronRight size={20} />
       </div>
@@ -107,7 +104,6 @@ export const FullscreenMenuDrawer: React.FC<FullscreenMenuDrawerProps> = ({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -117,7 +113,6 @@ export const FullscreenMenuDrawer: React.FC<FullscreenMenuDrawerProps> = ({
             onClick={onClose}
           />
 
-          {/* Drawer */}
           <motion.div 
             initial={{ x: "100%" }}
             animate={{ x: "0%" }}
@@ -133,7 +128,6 @@ export const FullscreenMenuDrawer: React.FC<FullscreenMenuDrawerProps> = ({
               flex flex-col
             `}
           >
-            {/* Header */}
             <div className="px-8 pt-safe-top pb-6 flex justify-between items-center bg-transparent shrink-0 mt-6">
               <h2 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] flex items-center gap-3">
                 <div className="w-1.5 h-5 bg-indigo-500 rounded-full shadow-[0_0_10px_currentColor]" />
@@ -147,7 +141,6 @@ export const FullscreenMenuDrawer: React.FC<FullscreenMenuDrawerProps> = ({
               </button>
             </div>
 
-            {/* Content - Optimized for Landscape with Grid */}
             <div className="flex-1 px-6 py-2 overflow-y-auto custom-scrollbar space-y-4 landscape:space-y-0 landscape:grid landscape:grid-cols-2 landscape:gap-4">
               
               <MenuButton 
@@ -181,12 +174,10 @@ export const FullscreenMenuDrawer: React.FC<FullscreenMenuDrawerProps> = ({
 
             </div>
 
-            {/* Footer - Condensed for Landscape */}
             <div className="p-8 landscape:p-6 space-y-6 landscape:space-y-4 shrink-0 bg-gradient-to-t from-white/50 via-white/20 to-transparent dark:from-black/40 dark:via-black/10 pb-safe-bottom">
                  
                  <div className="h-px bg-black/5 dark:bg-white/5 w-full" />
 
-                 {/* Theme Toggle */}
                  <div className="flex flex-col gap-3">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Appearance</span>
                     <div className="flex bg-white/50 dark:bg-white/5 p-1.5 rounded-3xl border border-black/5 dark:border-white/5">

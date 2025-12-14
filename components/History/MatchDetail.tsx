@@ -16,8 +16,6 @@ interface MatchDetailProps {
   onBack: () => void;
 }
 
-// --- SUB-COMPONENTS ---
-
 const StatBar = ({ label, valueA, valueB, colorA, colorB, icon: Icon }: any) => {
     const total = valueA + valueB || 1;
     const percentA = Math.round((valueA / total) * 100);
@@ -25,7 +23,6 @@ const StatBar = ({ label, valueA, valueB, colorA, colorB, icon: Icon }: any) => 
 
     return (
         <div className="flex flex-col gap-1 w-full mb-3 last:mb-0">
-            {/* Header Row - Compact */}
             <div className="flex items-center justify-between px-0 w-full text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <span className={`font-black tabular-nums text-xs ${colorA.text} ${colorA.textDark}`}>{valueA}</span>
                 <div className="flex items-center gap-1.5 opacity-80">
@@ -35,13 +32,12 @@ const StatBar = ({ label, valueA, valueB, colorA, colorB, icon: Icon }: any) => 
                 <span className={`font-black tabular-nums text-xs ${colorB.text} ${colorB.textDark}`}>{valueB}</span>
             </div>
 
-            {/* Bar - Slimmer (h-1.5) */}
             <div className="flex h-1.5 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-white/5">
                 <motion.div 
                     initial={{ width: 0 }} animate={{ width: `${percentA}%` }} 
                     className={`h-full ${colorA.halo}`} 
                 />
-                <div className="w-px bg-transparent" /> {/* Tiny spacer */}
+                <div className="w-px bg-transparent" /> 
                 <motion.div 
                     initial={{ width: 0 }} animate={{ width: `${percentB}%` }} 
                     className={`h-full ${colorB.halo}`} 
@@ -54,27 +50,23 @@ const StatBar = ({ label, valueA, valueB, colorA, colorB, icon: Icon }: any) => 
 const MomentumChart = ({ actionLog, sets, hexA, hexB }: { actionLog: any[], sets: SetHistory[], hexA: string, hexB: string }) => {
     const { t } = useTranslation();
     
-    // 1. Calculate the flow
     const dataPoints = useMemo(() => {
         let scoreA = 0;
         let scoreB = 0;
-        const points = [{ x: 0, y: 0 }]; // Start at 0 diff
+        const points = [{ x: 0, y: 0 }];
 
-        // Filter only score events to ensure X-axis is accurate to points played
         const scoreEvents = actionLog.filter(l => l.type === 'POINT');
         
         scoreEvents.forEach((log, index) => {
             if (log.team === 'A') scoreA++;
             else scoreB++;
             
-            // Y = Global Score Difference (A - B)
             points.push({ x: index + 1, y: scoreA - scoreB });
         });
         
         return points;
     }, [actionLog]);
 
-    // 2. Calculate Set Markers (Vertical Lines)
     const setMarkers = useMemo(() => {
         let cumulativePoints = 0;
         return sets.map((set, i) => {
@@ -94,13 +86,11 @@ const MomentumChart = ({ actionLog, sets, hexA, hexB }: { actionLog: any[], sets
         </div>
     );
 
-    // Dimensions (Internal SVG Units)
     const SVG_W = 100;
-    const SVG_H = 50; // Compact height
+    const SVG_H = 50; 
     const PADDING_Y = 8;
     const GRAPH_H = SVG_H - (PADDING_Y * 2);
     
-    // Scale Functions
     const maxVal = Math.max(...dataPoints.map(p => Math.abs(p.y)), 3); 
     const maxY = maxVal * 1.1; 
     
@@ -194,11 +184,8 @@ const PlayerStatRow: React.FC<{ stats: CalculatedStat, isMVP: boolean, rank: num
     const theme = stats.team === 'A' ? themeA : (stats.team === 'B' ? themeB : { text: 'text-slate-400', textDark: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/20' });
     const teamColorClass = `${theme.text} ${theme.textDark}`;
     
-    // Compact Row Design
     return (
         <div className="flex items-center justify-between py-2 border-b border-black/5 dark:border-white/5 last:border-0 w-full">
-            
-            {/* Left: Rank + Name */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className={`w-5 text-center font-bold text-xs ${isMVP ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'}`}>
                     {isMVP ? <Crown size={14} className="mx-auto" /> : rank}
@@ -214,7 +201,6 @@ const PlayerStatRow: React.FC<{ stats: CalculatedStat, isMVP: boolean, rank: num
                 </div>
             </div>
 
-            {/* Right: Stats Pills (Compact) */}
             <div className="flex items-center gap-1.5">
                 {stats.attack > 0 && (
                     <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-black/5 dark:border-white/5" title="Kills">
@@ -235,7 +221,6 @@ const PlayerStatRow: React.FC<{ stats: CalculatedStat, isMVP: boolean, rank: num
                     </div>
                 )}
                 
-                {/* Total Points (Hero) */}
                 <div className="w-8 text-right font-black text-sm tabular-nums text-slate-800 dark:text-white">
                     {stats.total}
                 </div>
@@ -256,7 +241,6 @@ export const MatchDetail: React.FC<MatchDetailProps> = ({ match, onBack }) => {
     const isWinnerA = match.winner === 'A';
     const isWinnerB = match.winner === 'B';
 
-    // Parse Stats
     const stats = useMemo(() => {
         const s = {
             a: { attack: 0, block: 0, ace: 0, err: 0, total: 0 },
@@ -283,7 +267,6 @@ export const MatchDetail: React.FC<MatchDetailProps> = ({ match, onBack }) => {
                         skillLevel: 5, total: 0, attack: 0, block: 0, ace: 0 
                     };
                     
-                    // Name Resolution
                     if (pStats.name === 'Unknown') {
                         const pA = match.teamARoster?.players.find(p => p.id === log.playerId) || match.teamARoster?.reserves?.find(p => p.id === log.playerId);
                         const pB = match.teamBRoster?.players.find(p => p.id === log.playerId) || match.teamBRoster?.reserves?.find(p => p.id === log.playerId);
@@ -306,14 +289,13 @@ export const MatchDetail: React.FC<MatchDetailProps> = ({ match, onBack }) => {
     const topPlayers = useMemo(() => {
         return (Array.from(stats.players.values()) as CalculatedStat[])
             .sort((a, b) => b.total - a.total)
-            .slice(0, 8); // Expanded to show more since rows are compact
+            .slice(0, 8); 
     }, [stats]);
 
     return (
         <div className="flex flex-col h-full bg-transparent overflow-hidden relative">
             
-            {/* Header: Transparent & Minimal */}
-            <div className="px-4 py-4 flex items-center justify-between shrink-0">
+            <div className="px-4 py-4 landscape:py-2 flex items-center justify-between shrink-0">
                 <button 
                     onClick={onBack} 
                     className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 hover:text-indigo-500 font-bold text-xs uppercase tracking-wider transition-colors px-3 py-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
@@ -325,91 +307,92 @@ export const MatchDetail: React.FC<MatchDetailProps> = ({ match, onBack }) => {
                 </div>
             </div>
 
-            {/* Scrollable Content */}
+            {/* SPLIT VIEW Container for Landscape */}
             <motion.div 
-                className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-safe-bottom space-y-6"
+                className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-safe-bottom space-y-6 landscape:grid landscape:grid-cols-2 landscape:gap-6 landscape:space-y-0"
                 variants={staggerContainer}
                 initial="hidden"
                 animate="visible"
             >
                 
-                {/* 1. Scoreboard Hero (Only "Card" in the view) */}
-                <motion.div variants={staggerItem} className="bg-white/60 dark:bg-white/[0.03] rounded-3xl p-5 border border-white/40 dark:border-white/5 shadow-sm backdrop-blur-md relative overflow-hidden">
-                    <div className="absolute inset-0 opacity-[0.03] bg-grid-slate-900/[0.1] dark:bg-grid-white/[0.05] pointer-events-none" />
-                    
-                    <div className="flex items-center justify-between gap-4 relative z-10">
-                        <TeamHero name={match.teamAName} winner={isWinnerA} theme={themeA} />
+                {/* LEFT COLUMN: Hero Scoreboard + Key Stats */}
+                <div className="flex flex-col gap-6 landscape:sticky landscape:top-0 landscape:h-fit">
+                    <motion.div variants={staggerItem} className="bg-white/60 dark:bg-white/[0.03] rounded-3xl p-5 border border-white/40 dark:border-white/5 shadow-sm backdrop-blur-md relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-[0.03] bg-grid-slate-900/[0.1] dark:bg-grid-white/[0.05] pointer-events-none" />
                         
-                        <div className="flex flex-col items-center gap-1 min-w-[80px]">
-                            <div className="text-4xl sm:text-5xl font-black tabular-nums tracking-tighter flex items-center gap-1 leading-none text-slate-800 dark:text-white drop-shadow-sm">
-                                <span className={isWinnerA ? 'opacity-100' : 'opacity-50'}>{match.setsA}</span>
-                                <span className="text-slate-300 dark:text-slate-600 text-2xl mx-1">:</span>
-                                <span className={isWinnerB ? 'opacity-100' : 'opacity-50'}>{match.setsB}</span>
+                        <div className="flex items-center justify-between gap-4 relative z-10">
+                            <TeamHero name={match.teamAName} winner={isWinnerA} theme={themeA} />
+                            
+                            <div className="flex flex-col items-center gap-1 min-w-[80px]">
+                                <div className="text-4xl sm:text-5xl font-black tabular-nums tracking-tighter flex items-center gap-1 leading-none text-slate-800 dark:text-white drop-shadow-sm">
+                                    <span className={isWinnerA ? 'opacity-100' : 'opacity-50'}>{match.setsA}</span>
+                                    <span className="text-slate-300 dark:text-slate-600 text-2xl mx-1">:</span>
+                                    <span className={isWinnerB ? 'opacity-100' : 'opacity-50'}>{match.setsB}</span>
+                                </div>
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Final</span>
                             </div>
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Final</span>
-                        </div>
 
-                        <TeamHero name={match.teamBName} winner={isWinnerB} isRight theme={themeB} />
-                    </div>
-                </motion.div>
-
-                {/* 2. Timeline (Full Width) */}
-                {match.actionLog && match.actionLog.length > 0 && (
-                    <motion.div variants={staggerItem} className="-mx-2">
-                        <MatchTimeline match={match} />
-                    </motion.div>
-                )}
-
-                {/* 3. Momentum Graph (Clean Container) */}
-                {match.actionLog && match.actionLog.length > 0 && (
-                    <motion.div variants={staggerItem}>
-                        <div className="flex items-center gap-2 mb-1 px-1">
-                            <TrendingUp size={14} className="text-indigo-500" />
-                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('stats.momentum')}</h3>
-                        </div>
-                        <MomentumChart actionLog={match.actionLog} sets={match.sets} hexA={hexA} hexB={hexB} />
-                    </motion.div>
-                )}
-
-                {/* 4. Team Comparison (Flat List) */}
-                {match.actionLog && (
-                    <motion.div variants={staggerItem}>
-                        <div className="flex items-center gap-2 mb-3 px-1">
-                            <BarChart2 size={14} className="text-indigo-500" />
-                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('stats.teamStats')}</h3>
-                        </div>
-                        
-                        <div className="flex flex-col gap-1 w-full">
-                            <StatBar label={t('stats.attackPoints')} valueA={stats.a.attack} valueB={stats.b.attack} colorA={themeA} colorB={themeB} icon={Swords} />
-                            <StatBar label={t('stats.killBlocks')} valueA={stats.a.block} valueB={stats.b.block} colorA={themeA} colorB={themeB} icon={Shield} />
-                            <StatBar label={t('stats.serviceAces')} valueA={stats.a.ace} valueB={stats.b.ace} colorA={themeA} colorB={themeB} icon={Target} />
-                            <StatBar label={t('stats.oppErrors')} valueA={stats.a.err} valueB={stats.b.err} colorA={themeA} colorB={themeB} icon={AlertTriangle} />
+                            <TeamHero name={match.teamBName} winner={isWinnerB} isRight theme={themeB} />
                         </div>
                     </motion.div>
-                )}
 
-                {/* 5. Player Leaderboard (Flat List) */}
-                {topPlayers.length > 0 && (
-                    <motion.div variants={staggerItem} className="pb-8">
-                        <div className="flex items-center gap-2 mb-3 px-1">
-                            <Crown size={14} className="text-amber-500" />
-                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('stats.topScorers')}</h3>
-                        </div>
-                        
-                        <div className="flex flex-col w-full">
-                            {topPlayers.map((p, i) => (
-                                <PlayerStatRow 
-                                    key={p.id} 
-                                    stats={p} 
-                                    rank={i + 1} 
-                                    isMVP={i === 0} 
-                                    themeA={themeA} 
-                                    themeB={themeB} 
-                                />
-                            ))}
-                        </div>
-                    </motion.div>
-                )}
+                    {match.actionLog && (
+                        <motion.div variants={staggerItem}>
+                            <div className="flex items-center gap-2 mb-3 px-1">
+                                <BarChart2 size={14} className="text-indigo-500" />
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('stats.teamStats')}</h3>
+                            </div>
+                            
+                            <div className="flex flex-col gap-1 w-full">
+                                <StatBar label={t('stats.attackPoints')} valueA={stats.a.attack} valueB={stats.b.attack} colorA={themeA} colorB={themeB} icon={Swords} />
+                                <StatBar label={t('stats.killBlocks')} valueA={stats.a.block} valueB={stats.b.block} colorA={themeA} colorB={themeB} icon={Shield} />
+                                <StatBar label={t('stats.serviceAces')} valueA={stats.a.ace} valueB={stats.b.ace} colorA={themeA} colorB={themeB} icon={Target} />
+                                <StatBar label={t('stats.oppErrors')} valueA={stats.a.err} valueB={stats.b.err} colorA={themeA} colorB={themeB} icon={AlertTriangle} />
+                            </div>
+                        </motion.div>
+                    )}
+                </div>
+
+                {/* RIGHT COLUMN: Timeline & Detailed Logs */}
+                <div className="flex flex-col gap-6">
+                    {match.actionLog && match.actionLog.length > 0 && (
+                        <motion.div variants={staggerItem} className="-mx-2">
+                            <MatchTimeline match={match} />
+                        </motion.div>
+                    )}
+
+                    {match.actionLog && match.actionLog.length > 0 && (
+                        <motion.div variants={staggerItem}>
+                            <div className="flex items-center gap-2 mb-1 px-1">
+                                <TrendingUp size={14} className="text-indigo-500" />
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('stats.momentum')}</h3>
+                            </div>
+                            <MomentumChart actionLog={match.actionLog} sets={match.sets} hexA={hexA} hexB={hexB} />
+                        </motion.div>
+                    )}
+
+                    {topPlayers.length > 0 && (
+                        <motion.div variants={staggerItem} className="pb-8">
+                            <div className="flex items-center gap-2 mb-3 px-1">
+                                <Crown size={14} className="text-amber-500" />
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('stats.topScorers')}</h3>
+                            </div>
+                            
+                            <div className="flex flex-col w-full">
+                                {topPlayers.map((p, i) => (
+                                    <PlayerStatRow 
+                                        key={p.id} 
+                                        stats={p} 
+                                        rank={i + 1} 
+                                        isMVP={i === 0} 
+                                        themeA={themeA} 
+                                        themeB={themeB} 
+                                    />
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                </div>
 
             </motion.div>
         </div>

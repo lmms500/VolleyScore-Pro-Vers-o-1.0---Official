@@ -87,7 +87,8 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
       textColor: 'text-slate-800 dark:text-white',
       borderColor: 'border-slate-200 dark:border-white/10',
       halo: 'bg-slate-500',
-      Icon: HelpCircle
+      Icon: HelpCircle,
+      shadowColor: 'shadow-black/20'
   };
 
   if (type === 'success' && teamColor) {
@@ -98,7 +99,8 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
           textColor: resolved.textDark,
           borderColor: resolved.border,
           halo: resolved.halo,
-          Icon: skillIcons[skill || 'generic']
+          Icon: skillIcons[skill || 'generic'],
+          shadowColor: 'shadow-emerald-500/20'
       };
   } else if (type === 'error') {
       theme = {
@@ -107,7 +109,8 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
           textColor: 'text-rose-700 dark:text-rose-200',
           borderColor: 'border-rose-500/20',
           halo: 'bg-rose-500',
-          Icon: AlertCircle
+          Icon: AlertCircle,
+          shadowColor: 'shadow-rose-500/25'
       };
   } else if (type === 'info') {
       theme = {
@@ -116,7 +119,8 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
           textColor: 'text-sky-700 dark:text-sky-200',
           borderColor: 'border-sky-500/20',
           halo: 'bg-sky-500',
-          Icon: CheckCircle2
+          Icon: CheckCircle2,
+          shadowColor: 'shadow-sky-500/20'
       };
   }
 
@@ -127,6 +131,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
       theme.iconColor = 'text-violet-500';
       theme.borderColor = 'border-violet-500/20';
       theme.textColor = 'text-violet-600 dark:text-violet-300';
+      theme.shadowColor = 'shadow-violet-500/20';
   }
 
   // Apply System Icon Override if provided
@@ -139,34 +144,28 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
           theme.iconColor = 'text-amber-500';
           theme.borderColor = 'border-amber-500/20';
           theme.textColor = 'text-amber-700 dark:text-amber-300';
+          theme.shadowColor = 'shadow-amber-500/20';
       }
       if (systemIcon === 'save') {
           theme.iconBg = 'bg-emerald-500/10';
           theme.iconColor = 'text-emerald-500';
           theme.borderColor = 'border-emerald-500/20';
           theme.textColor = 'text-emerald-700 dark:text-emerald-300';
+          theme.shadowColor = 'shadow-emerald-500/20';
       }
       if (systemIcon === 'block' || systemIcon === 'delete') {
           theme.iconBg = 'bg-rose-500/10';
           theme.iconColor = 'text-rose-500';
           theme.borderColor = 'border-rose-500/20';
           theme.textColor = 'text-rose-700 dark:text-rose-300';
-      }
-      if (systemIcon === 'mic') {
-          theme.iconBg = 'bg-sky-500/10';
-          theme.iconColor = 'text-sky-500';
-          theme.borderColor = 'border-sky-500/20';
-      }
-      if (systemIcon === 'undo') {
-          theme.iconBg = 'bg-slate-500/10';
-          theme.iconColor = 'text-slate-500 dark:text-slate-400';
-          theme.borderColor = 'border-slate-500/20';
+          theme.shadowColor = 'shadow-rose-500/20';
       }
       if (systemIcon === 'party') {
           theme.iconBg = 'bg-fuchsia-500/10';
           theme.iconColor = 'text-fuchsia-500';
           theme.borderColor = 'border-fuchsia-500/20';
           theme.textColor = 'text-fuchsia-700 dark:text-fuchsia-300';
+          theme.shadowColor = 'shadow-fuchsia-500/30';
       }
   }
 
@@ -192,7 +191,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
       rounded-2xl
       bg-white/95 dark:bg-[#020617]/95 backdrop-blur-md
       border border-black/5 dark:border-white/10
-      shadow-2xl shadow-black/30 dark:shadow-black/60
+      shadow-lg ${theme.shadowColor}
       ring-1 ring-black/5 dark:ring-white/5
       min-w-[160px] w-auto max-w-sm h-auto
       cursor-pointer active:scale-95 transition-transform
