@@ -79,6 +79,7 @@ export interface Player {
   isFixed: boolean; // Se true, o jogador não é movido durante o balanceamento automático
   fixedSide?: 'A' | 'B' | null; // Se fixo, lembra de onde veio (opcional)
   originalIndex: number; // CRÍTICO: Para permitir o "Reset" da ordem exata de entrada
+  displayOrder?: number; // VISUAL ORDER: Determines list position in Manager, decoupled from rotation logic
 }
 
 export interface Team {

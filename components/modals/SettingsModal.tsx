@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { GameConfig } from '../../types';
-import { Check, Trophy, Sun, Zap, Moon, AlertTriangle, Volume2, Umbrella, Activity, Globe, Scale, ToggleLeft, ToggleRight, RefreshCw, CloudDownload, Smartphone, ArrowRight, Mic, Battery, Megaphone, User, User2, Bell, BellRing, AlignJustify, HelpCircle, LogOut, LogIn, Key, Eye, EyeOff, Layers, Cpu, Server, Target, ZapOff, UploadCloud, DownloadCloud, Loader2, Power, Share2, FileDown, Play, Gauge, AudioWaveform, Crown, Terminal, Lock, Cloud, X } from 'lucide-react';
+import { Check, Trophy, Sun, Zap, Moon, AlertTriangle, Volume2, Umbrella, Activity, Globe, Scale, ToggleLeft, ToggleRight, RefreshCw, CloudDownload, Smartphone, ArrowRight, Mic, Battery, Megaphone, User, User2, Bell, BellRing, AlignJustify, HelpCircle, LogOut, LogIn, Key, Eye, EyeOff, Layers, Cpu, Server, Target, ZapOff, UploadCloud, DownloadCloud, Loader2, Power, Share2, FileDown, Play, Gauge, AudioWaveform, Crown, Terminal, Lock, Cloud, X, Users } from 'lucide-react';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useServiceWorker } from '../../hooks/useServiceWorker';
@@ -75,7 +75,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = memo(({
       lastScrollY.current = currentY;
   }, [showHeader]);
   
-  // ... (Existing helper functions: fileInputRef, haptics, etc. remain unchanged)
   const fileInputRef = useRef<HTMLInputElement>(null);
   const gameImportRef = useRef<HTMLInputElement>(null); 
   const haptics = useHaptics();
@@ -167,7 +166,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = memo(({
       }
   };
 
-  // ... (Existing backup/restore functions truncated for brevity, assume they exist)
   const handleGenerateBackup = async () => {
       setBackupStatus('loading');
       try {
@@ -268,9 +266,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = memo(({
   const setPresetBeach = () => setLocalConfig(prev => ({ ...prev, mode: 'beach', maxSets: 3, pointsPerSet: 21, hasTieBreak: true, tieBreakPoints: 15, deuceType: 'standard' }));
   const setPresetSegunda = () => setLocalConfig(prev => ({ ...prev, mode: 'indoor', maxSets: 1, pointsPerSet: 15, hasTieBreak: false, tieBreakPoints: 15, deuceType: 'sudden_death_3pt' }));
 
-  const isFIVB = localConfig.mode === 'indoor' && localConfig.maxSets === 5 && localConfig.pointsPerSet === 25;
-  const isBeach = localConfig.mode === 'beach' && localConfig.maxSets === 3 && localConfig.pointsPerSet === 21;
-  const isSegunda = localConfig.deuceType === 'sudden_death_3pt';
+  // STRICT COMPARISON FOR PRESETS
+  // We only highlight the preset button if ALL settings match the preset exactly.
+  // This prevents the "Custom" (Segunda) button from lighting up just because Sudden Death is active in a 5-set game.
+  const isFIVB = localConfig.mode === 'indoor' && localConfig.maxSets === 5 && localConfig.pointsPerSet === 25 && localConfig.hasTieBreak && localConfig.tieBreakPoints === 15 && localConfig.deuceType === 'standard';
+  
+  const isBeach = localConfig.mode === 'beach' && localConfig.maxSets === 3 && localConfig.pointsPerSet === 21 && localConfig.hasTieBreak && localConfig.tieBreakPoints === 15 && localConfig.deuceType === 'standard';
+  
+  const isSegunda = localConfig.mode === 'indoor' && localConfig.maxSets === 1 && localConfig.pointsPerSet === 15 && !localConfig.hasTieBreak && localConfig.deuceType === 'sudden_death_3pt';
 
   const SectionTitle = ({ children, icon: Icon }: { children?: React.ReactNode, icon?: any }) => (
       <div className="flex items-center gap-2 px-2 mt-3 mb-1.5">
@@ -357,7 +360,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = memo(({
                 {/* MATCH RULES TAB */}
                 {activeTab === 'match' && (
                     <motion.div key="match" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.2 }} className="space-y-3 landscape:grid landscape:grid-cols-2 landscape:gap-4 landscape:space-y-0">
-                        {/* ... (Content remains unchanged) */}
                         {/* Left Col */}
                         <div className="space-y-3">
                             <div>
@@ -383,8 +385,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = memo(({
                                 <div className="space-y-2">
                                     <SettingItem label={t('settings.rules.gameMode')} icon={Trophy} color={{bg:'bg-indigo-500/10', text:'text-indigo-500'}}>
                                         <div className="flex bg-slate-100 dark:bg-black/20 rounded-xl p-1 border border-black/5 dark:border-white/5">
-                                            <button onClick={() => setLocalConfig(prev => ({ ...prev, mode: 'indoor' }))} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${localConfig.mode === 'indoor' ? 'bg-white dark:bg-white/10 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>{t('settings.rules.modes.indoor')}</button>
-                                            <button onClick={() => setLocalConfig(prev => ({ ...prev, mode: 'beach' }))} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${localConfig.mode === 'beach' ? 'bg-white dark:bg-white/10 shadow-sm text-orange-500' : 'text-slate-400'}`}>{t('settings.rules.modes.beach')}</button>
+                                            <button onClick={() => setLocalConfig(prev => ({ ...prev, mode: 'indoor' }))} className={`flex flex-col items-center justify-center px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${localConfig.mode === 'indoor' ? 'bg-white dark:bg-white/10 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
+                                                <span>{t('settings.rules.modes.indoor')}</span>
+                                                <span className="text-[8px] opacity-70 flex items-center gap-1"><Users size={8} /> 6v6</span>
+                                            </button>
+                                            <button onClick={() => setLocalConfig(prev => ({ ...prev, mode: 'beach' }))} className={`flex flex-col items-center justify-center px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${localConfig.mode === 'beach' ? 'bg-white dark:bg-white/10 shadow-sm text-orange-500' : 'text-slate-400'}`}>
+                                                <span>{t('settings.rules.modes.beach')}</span>
+                                                <span className="text-[8px] opacity-70 flex items-center gap-1"><Users size={8} /> 4v4</span>
+                                            </button>
                                         </div>
                                     </SettingItem>
                                     <SettingItem label={t('settings.rules.setsToPlay')} icon={Layers} color={{bg:'bg-slate-500/10', text:'text-slate-500'}}>

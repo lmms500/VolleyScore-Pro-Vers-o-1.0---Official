@@ -1,5 +1,6 @@
+
 import { GameState, TeamId, SetHistory, ActionLog, Team, Player, SkillType, GameAction, RotationReport } from '../types';
-import { SETS_TO_WIN_MATCH, MIN_LEAD_TO_WIN } from '../constants';
+import { SETS_TO_WIN_MATCH, MIN_LEAD_TO_WIN, getPlayersOnCourt } from '../constants';
 import { isValidTimeoutRequest, sanitizeInput } from '../utils/security';
 import { handleAddPlayer, handleRemovePlayer, handleDeletePlayer, handleRotate, createPlayer } from '../utils/rosterLogic';
 import { balanceTeamsSnake, distributeStandard } from '../utils/balanceUtils';
@@ -17,26 +18,27 @@ const calculateWinner = (scoreA: number, scoreB: number, target: number, inSudde
     return null;
 };
 
-// Rotates array: [1,2,3,4,5,6] -> [6,1,2,3,4,5] (Clockwise visual rotation)
 const rotateClockwise = (players: Player[]): Player[] => {
     if (players.length < 2) return players;
     const copy = [...players];
-    const last = copy.pop(); // Remove 6
-    if (last) copy.unshift(last); // Add 6 to start
+    const last = copy.pop(); 
+    if (last) copy.unshift(last); 
     return copy;
 };
 
-// Undo rotation: [6,1,2,3,4,5] -> [1,2,3,4,5,6]
 const rotateCounterClockwise = (players: Player[]): Player[] => {
     if (players.length < 2) return players;
     const copy = [...players];
-    const first = copy.shift(); // Remove 6
-    if (first) copy.push(first); // Add 6 to end
+    const first = copy.shift();
+    if (first) copy.push(first);
     return copy;
 };
 
 // --- REDUCER ---
 export const gameReducer = (state: GameState, action: GameAction): GameState => {
+  // Current Court Limit based on Mode
+  const courtLimit = getPlayersOnCourt(state.config.mode);
+
   switch (action.type) {
     case 'LOAD_STATE':
       return { ...action.payload };
@@ -75,7 +77,6 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
 
       const setWinner = calculateWinner(newScoreA, newScoreB, target, state.inSuddenDeath || enteringSuddenDeath);
 
-      // --- AUTO ROTATION LOGIC (Side-Out) ---
       let autoRotated = false;
       let nextTeamA = { ...state.teamARoster };
       let nextTeamB = { ...state.teamBRoster };
@@ -83,20 +84,19 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
       const currentServer = state.servingTeam;
       
       if (setWinner) {
-          // If set ends, we don't rotate now, next set setup handles it or user manually sets server.
+          // No rotation on set win
       } else {
-          // Point scored, game continues.
+          // Side-out logic: If the serving team loses the point (currentServer !== scoringTeam),
+          // the scoring team (new server) must rotate.
           if (currentServer && currentServer !== team) {
-              // SIDE OUT! The team that scored ('team') was NOT serving.
-              // They win the serve. They must rotate.
               autoRotated = true;
+              
               if (team === 'A') {
                   nextTeamA.players = rotateClockwise(nextTeamA.players);
-                  // Reset Visual Offset on real rotation to sync reality
+                  // Ensure offset is reset/kept at 0 since we rotated the actual array
                   nextTeamA.tacticalOffset = 0;
               } else {
                   nextTeamB.players = rotateClockwise(nextTeamB.players);
-                  // Reset Visual Offset on real rotation to sync reality
                   nextTeamB.tacticalOffset = 0;
               }
           }
@@ -110,7 +110,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         prevServingTeam: state.servingTeam,
         prevInSuddenDeath: state.inSuddenDeath,
         timestamp: Date.now(),
-        autoRotated: autoRotated, // Store for undo
+        autoRotated: autoRotated,
         ...(action.metadata || {})   
       };
 
@@ -124,12 +124,10 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
           
           const snapshotState = { ...state };
           
-          // PRE-CALCULATE ROTATION REPORT (But do NOT apply to rosters yet)
-          // This allows the MatchOverModal to show "Next: Team X" correctly without mutating the state early.
           let rotReport: RotationReport | null = null;
 
           if (state.queue.length > 0) {
-              const simResult = handleRotate(state.teamARoster, state.teamBRoster, state.queue, setWinner, state.rotationMode);
+              const simResult = handleRotate(state.teamARoster, state.teamBRoster, state.queue, setWinner, state.rotationMode, courtLimit);
               rotReport = simResult.report;
           }
 
@@ -153,7 +151,6 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
               matchLog: [...state.matchLog, newAction], 
               lastSnapshot: snapshotState,
               rotationReport: rotReport, 
-              // IMPORTANT: Do NOT update rosters/queue here. Wait for ROTATE_TEAMS action.
           };
       }
 
@@ -163,7 +160,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
           scoreB: newScoreB,
           teamARoster: nextTeamA,
           teamBRoster: nextTeamB,
-          servingTeam: team, // Scorer becomes server
+          servingTeam: team, 
           isTimerRunning: true,
           inSuddenDeath: state.inSuddenDeath || enteringSuddenDeath,
           pendingSideSwitch: triggerSideSwitch,
@@ -252,27 +249,25 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         }
 
         if (lastAction.type === 'MANUAL_ROTATION') {
-            // Revert rotation (Update Offset)
             const teamId = lastAction.teamId;
             const direction = lastAction.direction; 
             let teamA = { ...state.teamARoster };
             let teamB = { ...state.teamBRoster };
 
-            // Reverse logic: Clockwise undo is Counter-Clockwise (Offset - 1)
-            const delta = direction === 'clockwise' ? -1 : 1;
-
+            // REVERSE THE ROTATION
+            // If action was Clockwise, we Rotate Counter Clockwise to Undo
             if (teamId === 'A') {
-                const current = teamA.tacticalOffset || 0;
-                teamA.tacticalOffset = (current + delta + 6) % 6;
+                if (direction === 'clockwise') teamA.players = rotateCounterClockwise(teamA.players);
+                else teamA.players = rotateClockwise(teamA.players);
             } else if (teamId === 'B') {
-                const current = teamB.tacticalOffset || 0;
-                teamB.tacticalOffset = (current + delta + 6) % 6;
+                if (direction === 'clockwise') teamB.players = rotateCounterClockwise(teamB.players);
+                else teamB.players = rotateClockwise(teamB.players);
             }
 
             return {
                 ...state,
                 actionLog: newLog,
-                matchLog: newMatchLog, // Remove from logs
+                matchLog: newMatchLog,
                 teamARoster: teamA,
                 teamBRoster: teamB
             };
@@ -282,7 +277,6 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
             let teamA = { ...state.teamARoster };
             let teamB = { ...state.teamBRoster };
 
-            // Revert Auto-Rotation if it happened
             if (lastAction.autoRotated) {
                 if (lastAction.team === 'A') {
                     teamA.players = rotateCounterClockwise(teamA.players);
@@ -316,7 +310,6 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
             servingTeam: null, swappedSides: false, timeoutsA: 0, timeoutsB: 0,
             inSuddenDeath: false, pendingSideSwitch: false, matchDurationSeconds: 0,
             isTimerRunning: false, lastSnapshot: undefined,
-            // Reset tactical offsets
             teamARoster: { ...state.teamARoster, tacticalOffset: 0 },
             teamBRoster: { ...state.teamBRoster, tacticalOffset: 0 }
         };
@@ -328,25 +321,77 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         return { ...state, servingTeam: action.team };
 
     case 'APPLY_SETTINGS':
+        const modeChanged = action.config.mode !== state.config.mode;
+        
+        let newState = { ...state, config: action.config };
+
+        // 1. Reset Logic
         if (action.shouldReset) {
-            return {
-                ...state,
+            newState = {
+                ...newState,
                 scoreA: 0, scoreB: 0, setsA: 0, setsB: 0, currentSet: 1, history: [],
                 actionLog: [], matchLog: [], isMatchOver: false, matchWinner: null,
                 servingTeam: null, timeoutsA: 0, timeoutsB: 0, inSuddenDeath: false,
                 pendingSideSwitch: false, lastSnapshot: undefined,
-                config: action.config,
                 teamARoster: { ...state.teamARoster, tacticalOffset: 0 },
                 teamBRoster: { ...state.teamBRoster, tacticalOffset: 0 }
             };
         }
-        return { ...state, config: action.config };
+
+        // 2. Roster Redistribution Logic (On Mode Change)
+        if (modeChanged) {
+            const newLimit = getPlayersOnCourt(action.config.mode);
+            
+            // Gather ALL players into a pool
+            const allPlayers = [
+                ...state.teamARoster.players,
+                ...state.teamBRoster.players,
+                ...state.queue.flatMap(t => t.players)
+            ];
+
+            // Re-distribute using standard algorithm
+            // We use distributeStandard to maintain the 'Winner Stays' style order 
+            // but adapt it to the new team sizes.
+            // If the user was in balanced mode, we could re-run balanceTeamsSnake, 
+            // but simpler to default to Standard Redistribution to ensure valid team sizes first.
+            const distResult = distributeStandard(
+                allPlayers, 
+                // Pass clean teams to force redistribution
+                { ...state.teamARoster, players: [] }, 
+                { ...state.teamBRoster, players: [] }, 
+                [], // Empty queue to force rebuild
+                newLimit
+            );
+
+            newState = {
+                ...newState,
+                teamARoster: { 
+                    ...distResult.courtA, 
+                    // Preserve reserves if they were manually placed, 
+                    // but distributeStandard puts everyone in players/queue based on limits.
+                    // So we likely want to keep reserves empty or let user manage them.
+                    // For simplicity, let distributeStandard handle the core logic.
+                    reserves: state.teamARoster.reserves, 
+                    hasActiveBench: state.teamARoster.hasActiveBench,
+                    tacticalOffset: 0
+                },
+                teamBRoster: { 
+                    ...distResult.courtB, 
+                    reserves: state.teamBRoster.reserves, 
+                    hasActiveBench: state.teamBRoster.hasActiveBench,
+                    tacticalOffset: 0
+                },
+                queue: distResult.queue,
+                teamAName: distResult.courtA.name,
+                teamBName: distResult.courtB.name
+            };
+        }
+
+        return newState;
 
     case 'ROTATE_TEAMS': {
-        // Triggered by "Next Game" button. Now applies the rotation.
         if (!state.matchWinner) return state;
         if (state.queue.length === 0) {
-            // No rotation needed, just reset scores for next game
              return {
                 ...state,
                 scoreA: 0, scoreB: 0, setsA: 0, setsB: 0, currentSet: 1, history: [],
@@ -368,8 +413,8 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
             rotationReport: state.rotationReport
         };
 
-        // Perform the actual rotation now
-        const res = handleRotate(state.teamARoster, state.teamBRoster, state.queue, state.matchWinner, state.rotationMode);
+        // Use dynamic courtLimit
+        const res = handleRotate(state.teamARoster, state.teamBRoster, state.queue, state.matchWinner, state.rotationMode, courtLimit);
         
         const rotationAction: ActionLog = {
             type: 'ROTATION',
@@ -401,7 +446,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         return { ...state, isTimerRunning: !state.isTimerRunning };
 
     case 'ROSTER_ADD_PLAYER': {
-        const { courtA, courtB, queue } = handleAddPlayer(state.teamARoster, state.teamBRoster, state.queue, action.player, action.targetId);
+        const { courtA, courtB, queue } = handleAddPlayer(state.teamARoster, state.teamBRoster, state.queue, action.player, action.targetId, courtLimit);
         return { ...state, teamARoster: courtA, teamBRoster: courtB, queue };
     }
 
@@ -439,7 +484,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
                 }
                 newQ[qIdx] = team;
             } else if (targetId === 'Queue') {
-                const res = handleAddPlayer(newA, newB, newQ, player, 'Queue');
+                const res = handleAddPlayer(newA, newB, newQ, player, 'Queue', courtLimit);
                 return { ...state, ...res };
             }
         }
@@ -447,7 +492,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
     }
 
     case 'ROSTER_REMOVE_PLAYER': {
-        const { courtA, courtB, queue } = handleRemovePlayer(state.teamARoster, state.teamBRoster, state.queue, action.playerId);
+        const { courtA, courtB, queue } = handleRemovePlayer(state.teamARoster, state.teamBRoster, state.queue, action.playerId, courtLimit);
         return { ...state, teamARoster: courtA, teamBRoster: courtB, queue };
     }
 
@@ -460,12 +505,10 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
     case 'ROSTER_MOVE_PLAYER': {
         const { playerId, fromId, toId, newIndex } = action;
 
-        // Create copies to mutate safely
         let newA = { ...state.teamARoster, players: [...state.teamARoster.players], reserves: [...(state.teamARoster.reserves || [])] };
         let newB = { ...state.teamBRoster, players: [...state.teamBRoster.players], reserves: [...(state.teamBRoster.reserves || [])] };
         let newQueue = state.queue.map(t => ({ ...t, players: [...t.players], reserves: [...(t.reserves || [])] }));
 
-        // 1. Find and Extract the player
         let player: Player | undefined;
 
         const findAndExtract = (team: Team, listType: 'players' | 'reserves'): boolean => {
@@ -490,25 +533,31 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
             }
         }
         
-        if (!player) {
-            console.warn(`[MovePlayer] Player ${playerId} not found in fromId ${fromId}`);
-            return state; // Player not found, abort
-        }
+        if (!player) return state;
 
-        // 2. Add player to destination
-        const addToList = (list: Player[], p: Player, idx?: number) => {
+        const addAndReindex = (list: Player[], p: Player, idx?: number) => {
             const safeIdx = (idx !== undefined && idx >= 0 && idx <= list.length) ? idx : list.length;
             list.splice(safeIdx, 0, p);
+            
+            list.forEach((pl, i) => {
+                pl.displayOrder = i;
+            });
         };
 
-        if (toId === 'A' || toId === newA.id) addToList(newA.players, player, newIndex);
-        else if (toId === 'A_Reserves' || toId === `${newA.id}_Reserves`) { addToList(newA.reserves, player, newIndex); newA.hasActiveBench = true; }
-        else if (toId === 'B' || toId === newB.id) addToList(newB.players, player, newIndex);
-        else if (toId === 'B_Reserves' || toId === `${newB.id}_Reserves`) { addToList(newB.reserves, player, newIndex); newB.hasActiveBench = true; }
+        if (toId === 'A' || toId === newA.id) {
+            addAndReindex(newA.players, player, newIndex);
+            newA.tacticalOffset = 0;
+        }
+        else if (toId === 'A_Reserves' || toId === `${newA.id}_Reserves`) { addAndReindex(newA.reserves, player, newIndex); newA.hasActiveBench = true; }
+        else if (toId === 'B' || toId === newB.id) {
+            addAndReindex(newB.players, player, newIndex);
+            newB.tacticalOffset = 0;
+        }
+        else if (toId === 'B_Reserves' || toId === `${newB.id}_Reserves`) { addAndReindex(newB.reserves, player, newIndex); newB.hasActiveBench = true; }
         else {
             for (let team of newQueue) {
-                if (toId === team.id) { addToList(team.players, player, newIndex); break; }
-                if (toId === `${team.id}_Reserves`) { addToList(team.reserves, player, newIndex); team.hasActiveBench = true; break; }
+                if (toId === team.id) { addAndReindex(team.players, player, newIndex); break; }
+                if (toId === `${team.id}_Reserves`) { addAndReindex(team.reserves, player, newIndex); team.hasActiveBench = true; break; }
             }
         }
         
@@ -604,7 +653,8 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         const players = action.players;
         const cleanA = { ...state.teamARoster, players: [], tacticalOffset: 0 };
         const cleanB = { ...state.teamBRoster, players: [], tacticalOffset: 0 };
-        const result = distributeStandard(players, cleanA, cleanB, []);
+        // Use dynamic limit
+        const result = distributeStandard(players, cleanA, cleanB, [], courtLimit);
         return { 
             ...state, 
             teamARoster: { ...result.courtA, reserves: state.teamARoster.reserves, hasActiveBench: state.teamARoster.hasActiveBench },
@@ -621,8 +671,9 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
     case 'ROSTER_BALANCE': {
         const allPlayers = [ ...state.teamARoster.players, ...state.teamBRoster.players, ...state.queue.flatMap(t => t.players) ];
         let result;
-        if (state.rotationMode === 'balanced') result = balanceTeamsSnake(allPlayers, state.teamARoster, state.teamBRoster, state.queue);
-        else result = distributeStandard(allPlayers, state.teamARoster, state.teamBRoster, state.queue);
+        // Use dynamic limit
+        if (state.rotationMode === 'balanced') result = balanceTeamsSnake(allPlayers, state.teamARoster, state.teamBRoster, state.queue, courtLimit);
+        else result = distributeStandard(allPlayers, state.teamARoster, state.teamBRoster, state.queue, courtLimit);
         return {
             ...state,
             teamARoster: { ...result.courtA, reserves: state.teamARoster.reserves, hasActiveBench: state.teamARoster.hasActiveBench, tacticalOffset: 0 },
@@ -689,11 +740,9 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         const syncList = (list: Player[]): Player[] => {
             return list.map(p => {
                 let master = null;
-                
                 if (p.profileId) {
                     master = profiles.get(p.profileId);
                 } else {
-                    // Tenta encontrar por nome (case-insensitive) para restauração de vínculo
                     for (const profile of profiles.values()) {
                         if (profile.name.trim().toLowerCase() === p.name.trim().toLowerCase()) {
                             master = profile;
@@ -703,7 +752,6 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
                 }
 
                 if (!master) { 
-                    // Se o jogador tinha um profileId mas o perfil não existe mais, desvincula
                     if (p.profileId) { hasChanges = true; return { ...p, profileId: undefined }; }
                     return p; 
                 }
@@ -719,10 +767,10 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
                     hasChanges = true;
                     return { 
                         ...p, 
-                        profileId: master.id, // Garante que o ID está correto
+                        profileId: master.id, 
                         name: master.name, 
                         skillLevel: master.skillLevel, 
-                        number: master.number || p.number, // Prefere o número do perfil, mas mantém o atual como fallback
+                        number: master.number || p.number, 
                         role: master.role 
                     };
                 }
@@ -792,17 +840,16 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         let newB = { ...state.teamBRoster };
         let log: ActionLog = { type: 'MANUAL_ROTATION', teamId, direction, timestamp: Date.now() };
 
-        // VISUAL ROTATION ONLY: Do NOT mutate players array.
-        // Update tacticalOffset.
-        const delta = direction === 'clockwise' ? 1 : -1;
-
+        // Synchronize visual rotation with actual data array
+        // This ensures subsequent auto-rotations work on the correct lineup state
         if (teamId === 'A') {
-            const current = newA.tacticalOffset || 0;
-            // Modulo arithmetic to handle negative wrap around properly
-            newA.tacticalOffset = (current + delta + 6) % 6;
+            if (direction === 'clockwise') newA.players = rotateClockwise(newA.players);
+            else newA.players = rotateCounterClockwise(newA.players);
+            newA.tacticalOffset = 0; // Reset offset as array is now physically rotated
         } else if (teamId === 'B') {
-            const current = newB.tacticalOffset || 0;
-            newB.tacticalOffset = (current + delta + 6) % 6;
+            if (direction === 'clockwise') newB.players = rotateClockwise(newB.players);
+            else newB.players = rotateCounterClockwise(newB.players);
+            newB.tacticalOffset = 0;
         }
 
         return {

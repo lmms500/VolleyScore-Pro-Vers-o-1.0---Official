@@ -1,6 +1,5 @@
 
 import { Player, Team, RotationReport, TeamColor } from '../types';
-import { PLAYER_LIMIT_ON_COURT } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 
 // --- HELPER FUNCTIONS ---
@@ -19,14 +18,6 @@ const getNumericStrength = (players: Player[]): number => {
 const getTotalSkill = (players: Player[]): number => {
     return players.reduce((acc, p) => acc + p.skillLevel, 0);
 };
-
-const createTeamContainer = (id: string, name: string, players: Player[], color: TeamColor = 'slate'): Team => ({
-  id,
-  name,
-  players,
-  color,
-  reserves: []
-});
 
 // Simple internal logger
 class RotationLogger {
@@ -53,13 +44,12 @@ export const balanceTeamsSnake = (
   allPlayers: Player[], 
   currentCourtA: Team, 
   currentCourtB: Team,
-  currentQueue: Team[]
+  currentQueue: Team[],
+  courtLimit: number
 ): { courtA: Team, courtB: Team, queue: Team[], logs?: string[] } => {
   
   const logger = new RotationLogger();
-  logger.log(`Starting Balance (Snake). Total Players: ${allPlayers.length}`);
-
-  const courtLimit = PLAYER_LIMIT_ON_COURT; 
+  logger.log(`Starting Balance (Snake). Total Players: ${allPlayers.length}. Court Limit: ${courtLimit}`);
 
   const currentStructure = [currentCourtA, currentCourtB, ...currentQueue];
   const anchors = currentStructure.map((team, idx) => {
@@ -154,16 +144,18 @@ export const distributeStandard = (
     allPlayers: Player[], 
     currentCourtA: Team, 
     currentCourtB: Team,
-    currentQueue: Team[]
+    currentQueue: Team[],
+    courtLimit: number
   ): { courtA: Team, courtB: Team, queue: Team[], logs?: string[] } => {
     
     const logger = new RotationLogger();
-    logger.log(`Restoring Standard Order. Players: ${allPlayers.length}`);
+    logger.log(`Restoring Standard Order. Players: ${allPlayers.length}. Court Limit: ${courtLimit}`);
 
     const currentStructure = [currentCourtA, currentCourtB, ...currentQueue];
     
     const totalPlayers = allPlayers.length;
-    const teamsNeeded = Math.ceil(totalPlayers / PLAYER_LIMIT_ON_COURT);
+    // Calculate buckets needed based on new dynamic limit
+    const teamsNeeded = Math.ceil(totalPlayers / courtLimit);
     const totalBuckets = Math.max(2, teamsNeeded, currentStructure.length);
 
     const buckets: Player[][] = Array.from({ length: totalBuckets }, () => []);
@@ -194,7 +186,7 @@ export const distributeStandard = (
     let currentBucketIdx = 0;
     
     for (const player of pool) {
-        while (currentBucketIdx < buckets.length && buckets[currentBucketIdx].length >= PLAYER_LIMIT_ON_COURT) {
+        while (currentBucketIdx < buckets.length && buckets[currentBucketIdx].length >= courtLimit) {
             currentBucketIdx++;
         }
         if (currentBucketIdx >= buckets.length) {
@@ -235,19 +227,15 @@ export const distributeStandard = (
 /**
  * Helper: Finds available players to "steal" from other teams to complete a roster.
  * STRICTLY respects isFixed.
- * 
- * LOGIC UPDATE:
- * Scans queue in order [0, 1, 2...].
- * When taking players from a specific team, prioritize Bottom-Up (Last In, First Stolen).
- * E.g., If Team 4 has players [1, 2, 3, 4, 5, 6], we steal 6, then 5, then 4.
  */
 const fillRosterFromQueue = (
     targetTeam: Team, 
     queue: Team[], 
+    courtLimit: number,
     logger: RotationLogger
 ): { updatedTeam: Team, updatedQueue: Team[], stolenPlayers: Player[] } => {
     
-    const needed = PLAYER_LIMIT_ON_COURT - targetTeam.players.length;
+    const needed = courtLimit - targetTeam.players.length;
     if (needed <= 0) return { updatedTeam: targetTeam, updatedQueue: queue, stolenPlayers: [] };
 
     let currentNeeded = needed;
@@ -258,8 +246,6 @@ const fillRosterFromQueue = (
     const newPlayers = [...targetTeam.players];
 
     // Iterate through queue from START to END.
-    // Index 0 = Next Team in line.
-    // Index Length-1 = The team that just lost (added to end).
     for (let i = 0; i < newQueue.length; i++) {
         if (currentNeeded <= 0) break;
 
@@ -268,8 +254,6 @@ const fillRosterFromQueue = (
         const candidates = donor.players.filter(p => !p.isFixed);
 
         while (currentNeeded > 0 && candidates.length > 0) {
-            // UPDATED LOGIC: Steal from the BOTTOM (pop) instead of TOP (shift).
-            // This ensures we take player #6, then #5, etc.
             const p = candidates.pop()!; 
             
             // Remove from donor in queue
@@ -296,46 +280,38 @@ const fillRosterFromQueue = (
 
 
 /**
- * Standard Rotation (Strict Team Identity):
- * 1. Winner Stays.
- * 2. Loser (with Fixed players) -> End of Queue.
- * 3. Next Team (from Start of Queue) -> Enters Court.
- * 4. If Incoming Team < 6, steal NON-FIXED players from Queue (prioritizing Front of Queue, Bottom-Up).
+ * Standard Rotation with Dynamic Limit
  */
 export const getStandardRotationResult = (
     winnerTeam: Team, 
     loserTeam: Team, 
-    currentQueue: Team[]
+    currentQueue: Team[],
+    courtLimit: number
 ): RotationReport => {
     const logger = new RotationLogger();
-    logger.log(`Standard Rotation (Fixed-Team Logic).`);
-    logger.log(`Winner: ${winnerTeam.name}, Loser: ${loserTeam.name}`);
+    logger.log(`Standard Rotation. Limit: ${courtLimit}`);
 
     // 1. Prepare Queue
     const queue = currentQueue.map(t => ({...t, players: [...t.players], reserves: [...(t.reserves || [])]}));
     
-    // 2. Move Loser to END of Queue (Intact - preserves Fixed players)
+    // 2. Move Loser to END of Queue
     const loserCopy = { ...loserTeam, players: [...loserTeam.players], reserves: [...(loserTeam.reserves||[])] };
     queue.push(loserCopy);
 
     // 3. Identify Incoming Team
     if (queue.length === 0) {
-        // Should not happen as we just pushed loser
         return { incomingTeam: loserTeam, queueAfterRotation: [], stolenPlayers: [], outgoingTeam: loserTeam, retainedPlayers: [], logs: logger.get() };
     }
 
-    // The "Next" team is the one at the FRONT of the queue
     const incomingBase = queue.shift()!; 
     
-    // 4. Fill Roster if Incomplete
-    // We pass the updated queue (where Loser is at the END and Next teams are at FRONT).
-    // fillRosterFromQueue scans from index 0, so it will steal from waiting teams before the loser.
-    const fillResult = fillRosterFromQueue(incomingBase, queue, logger);
+    // 4. Fill Roster if Incomplete using courtLimit
+    const fillResult = fillRosterFromQueue(incomingBase, queue, courtLimit, logger);
 
     return {
         outgoingTeam: loserTeam,
         incomingTeam: fillResult.updatedTeam,
-        retainedPlayers: incomingBase.players.filter(p => p.isFixed), // Informational
+        retainedPlayers: incomingBase.players.filter(p => p.isFixed), 
         queueAfterRotation: fillResult.updatedQueue,
         stolenPlayers: fillResult.stolenPlayers,
         logs: logger.get()
@@ -343,47 +319,35 @@ export const getStandardRotationResult = (
 };
 
 /**
- * Balanced Rotation (Skill Weighted):
- * Same strict team logic, but 'stealing' tries to balance skill.
+ * Balanced Rotation with Dynamic Limit
  */
 export const getBalancedRotationResult = (
     winnerTeam: Team,
     loserTeam: Team,
-    currentQueue: Team[]
+    currentQueue: Team[],
+    courtLimit: number
 ): RotationReport => {
     const logger = new RotationLogger();
-    logger.log("Balanced Rotation (Fixed-Team Logic).");
+    logger.log(`Balanced Rotation. Limit: ${courtLimit}`);
 
-    // 1. Queue Setup & Loser Move
     const queue = currentQueue.map(t => ({...t, players: [...t.players], reserves: [...(t.reserves || [])]}));
     const loserCopy = { ...loserTeam, players: [...loserTeam.players], reserves: [...(loserTeam.reserves||[])] };
     queue.push(loserCopy);
     
-    // 2. Incoming Team
     const incomingBase = queue.shift()!;
     
-    // 3. Balanced Filling
-    // We need to fill holes in incomingBase using NON-FIXED players from queue.
-    // We calculate target skill to match Winner.
-    
     const targetSkill = getNumericStrength(winnerTeam.players);
-    const needed = PLAYER_LIMIT_ON_COURT - incomingBase.players.length;
+    const needed = courtLimit - incomingBase.players.length;
     const stolenPlayers: Player[] = [];
     let updatedIncoming = { ...incomingBase, players: [...incomingBase.players] };
     let finalQueue = [...queue];
 
     if (needed > 0) {
-        // Collect ALL candidates from queue (flattened) to find best fit
-        // Note: We ignore team boundaries for finding the *best* skill match, 
-        // effectively treating the queue as a pool of non-fixed players.
-        
-        // Filter out fixed players
         const candidates: { player: Player, teamIndex: number, diff: number }[] = [];
         
         finalQueue.forEach((t, tIdx) => {
             t.players.forEach(p => {
                 if (!p.isFixed) {
-                    // Calculate impact of adding this player
                     const currentTotal = getTotalSkill(updatedIncoming.players);
                     const projectedAvg = (currentTotal + p.skillLevel) / (updatedIncoming.players.length + 1);
                     const diff = Math.abs(projectedAvg - targetSkill);
@@ -392,13 +356,9 @@ export const getBalancedRotationResult = (
             });
         });
 
-        // Sort by best skill match (lowest diff)
         candidates.sort((a, b) => a.diff - b.diff);
-
-        // Take top N needed
         const toSteal = candidates.slice(0, needed);
         
-        // Apply moves
         toSteal.forEach(c => {
             const donor = finalQueue[c.teamIndex];
             const pIdx = donor.players.findIndex(p => p.id === c.player.id);
@@ -406,11 +366,10 @@ export const getBalancedRotationResult = (
                 donor.players.splice(pIdx, 1);
                 updatedIncoming.players.push(c.player);
                 stolenPlayers.push(c.player);
-                logger.log(`Balanced Steal: ${c.player.name} (Lvl ${c.player.skillLevel}) from ${donor.name}`);
+                logger.log(`Balanced Steal: ${c.player.name} from ${donor.name}`);
             }
         });
         
-        // Cleanup empty teams
         finalQueue = finalQueue.filter(t => t.players.length > 0 || (t.reserves && t.reserves.length > 0));
     }
 
