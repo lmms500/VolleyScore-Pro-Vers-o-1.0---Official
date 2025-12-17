@@ -1,3 +1,4 @@
+
 import { useReducer, useEffect, useCallback, useState } from 'react';
 import { gameReducer } from '../reducers/gameReducer';
 import { GameState, GameConfig, TeamId, Player, PlayerProfile, SkillType, RotationMode, PlayerRole, Team } from '../types';
@@ -49,14 +50,11 @@ export const useVolleyGame = () => {
       try {
         const saved = await SecureStorage.load<GameState>(STORAGE_KEY);
         if (saved) {
-          // ROBUSTNESS: Merge saved config with DEFAULT_CONFIG to ensure new flags exist
           const mergedConfig = { ...DEFAULT_CONFIG, ...saved.config };
-          // Ensure structure integrity
           const validState = { 
               ...INITIAL_STATE, 
               ...saved, 
               config: mergedConfig,
-              // Legacy Fix: Ensure rosters exist if corrupted
               teamARoster: saved.teamARoster || INITIAL_STATE.teamARoster,
               teamBRoster: saved.teamBRoster || INITIAL_STATE.teamBRoster
           };
@@ -66,7 +64,6 @@ export const useVolleyGame = () => {
         }
       } catch (e) {
         console.error("Failed to load game state", e);
-        // Fallback to initial state if corruption
       }
       setIsLoaded(true);
     };
@@ -87,9 +84,11 @@ export const useVolleyGame = () => {
       }
   }, [profiles, profilesReady, isLoaded]);
 
-  // Actions
+  const loadStateFromFile = useCallback((newState: GameState) => {
+      dispatch({ type: 'LOAD_STATE', payload: newState });
+  }, []);
+
   const addPoint = useCallback((team: TeamId, metadata?: { playerId: string, skill: SkillType }) => {
-      // Safety check: Don't add points if match is over
       if (state.isMatchOver) return;
       dispatch({ type: 'POINT', team, metadata });
   }, [state.isMatchOver]);
@@ -218,11 +217,8 @@ export const useVolleyGame = () => {
           let skill = 5;
           let number: string | undefined = undefined;
           
-          // Regex 1: "10 Lucas 8" (Number + Name + Skill)
           const matchFull = trimmed.match(/^(\d+)\s+(.+)\s+(10|[1-9])$/);
-          // Regex 2: "Lucas 8" (Name + Skill)
           const matchSkill = trimmed.match(/^(.+)\s+(10|[1-9])$/);
-          // Regex 3: "10 Lucas" (Number + Name) - NEW
           const matchNumber = trimmed.match(/^(\d+)\s+(.+)$/);
 
           if (matchFull) { 
@@ -237,7 +233,6 @@ export const useVolleyGame = () => {
           else if (matchNumber) {
               number = matchNumber[1];
               name = matchNumber[2].trim();
-              // skill remains default (5)
           }
           
           let foundProfile: PlayerProfile | undefined = undefined;
@@ -281,7 +276,7 @@ export const useVolleyGame = () => {
       undoRemovePlayer, commitDeletions, rotateTeams, setRotationMode, balanceTeams, savePlayerToProfile, revertPlayerChanges,
       upsertProfile, deleteProfile, sortTeam, toggleTeamBench, substitutePlayers, deletePlayer, reorderQueue, disbandTeam,
       batchUpdateStats, restoreTeam, onRestorePlayer, resetRosters, relinkProfile, setState,
-      manualRotate, // Exported
+      manualRotate, loadStateFromFile,
       canUndo: state.actionLog.length > 0,
       hasDeletedPlayers: state.deletedPlayerHistory.length > 0,
       deletedCount: state.deletedPlayerHistory.length,

@@ -1,21 +1,17 @@
 
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence, terminate } from 'firebase/firestore';
 
 // ------------------------------------------------------------------
-// FIREBASE CONFIGURATION
-// Supports Vite (import.meta.env) and Standard (process.env)
+// FIREBASE CONFIGURATION ENGINE
 // ------------------------------------------------------------------
 
 const getEnv = (key: string) => {
-  // 1. Check Vite 'import.meta.env' (Modern Web)
-  // Cast to any to bypass TS check for 'env' on ImportMeta
   const meta = import.meta as any;
   if (typeof meta !== 'undefined' && meta.env) {
     return meta.env[key] || meta.env[`VITE_${key}`];
   }
-  // 2. Check Standard 'process.env' (Legacy/Test)
   if (typeof process !== 'undefined' && process.env) {
     return process.env[key] || process.env[`VITE_${key}`];
   }
@@ -25,7 +21,7 @@ const getEnv = (key: string) => {
 const apiKey = getEnv('FIREBASE_API_KEY');
 
 const firebaseConfig = {
-  apiKey: apiKey || "AIzaSy...", // Placeholder detection
+  apiKey: apiKey,
   authDomain: "volleyscore-pro.firebaseapp.com",
   projectId: "volleyscore-pro",
   storageBucket: "volleyscore-pro.appspot.com",
@@ -36,33 +32,46 @@ const firebaseConfig = {
 export let isFirebaseInitialized = false;
 
 let app;
-let authExport;
-let googleProviderExport;
-let dbExport;
+let authExport: any = null;
+let googleProviderExport: any = null;
+let dbExport: any = null;
 
-try {
-    // Robust check: Ensure key exists and is not the default placeholder
-    if (apiKey && !apiKey.startsWith('AIzaSy') && apiKey !== 'undefined') {
-        app = initializeApp(firebaseConfig);
-        authExport = getAuth(app);
-        googleProviderExport = new GoogleAuthProvider();
-        dbExport = getFirestore(app);
-        isFirebaseInitialized = true;
-        console.log("[Firebase] Initialized successfully.");
-    } else {
-        throw new Error("Missing or placeholder API Key");
+const initialize = async () => {
+    try {
+        if (apiKey && !apiKey.startsWith('AIzaSy') && apiKey !== 'undefined') {
+            if (!getApps().length) {
+                app = initializeApp(firebaseConfig);
+            } else {
+                app = getApp();
+            }
+            
+            authExport = getAuth(app);
+            googleProviderExport = new GoogleAuthProvider();
+            dbExport = getFirestore(app);
+            
+            // Enable Offline Persistence for Firestore (Crucial for high-performance mobile apps)
+            if (typeof window !== 'undefined') {
+                enableIndexedDbPersistence(dbExport).catch((err) => {
+                    if (err.code === 'failed-precondition') {
+                        console.warn("[Firebase] Multiple tabs open, persistence can only be enabled in one tab.");
+                    } else if (err.code === 'unimplemented') {
+                        console.warn("[Firebase] The current browser doesn't support persistence.");
+                    }
+                });
+            }
+
+            isFirebaseInitialized = true;
+            console.log("[Firebase] 100% Operational.");
+        } else {
+            console.warn("[Firebase] Configuration missing or invalid key.");
+        }
+    } catch (e) {
+        console.error("[Firebase] Fatal Initialization Error:", e);
     }
-} catch (e) {
-    console.warn("[Firebase] Initialization skipped:", (e as Error).message);
-    
-    // Mocks are kept minimal. Consuming services MUST check 'isFirebaseInitialized'.
-    // Passing these mocks to actual Firebase SDK functions (like getDocs) will still fail,
-    // so guards in services are mandatory.
-    authExport = null;
-    googleProviderExport = null;
-    dbExport = null;
-    isFirebaseInitialized = false;
-}
+};
+
+// Immediate invocation
+initialize();
 
 export const auth = authExport;
 export const googleProvider = googleProviderExport;

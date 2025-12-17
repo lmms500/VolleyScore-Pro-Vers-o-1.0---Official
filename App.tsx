@@ -73,7 +73,7 @@ const GameContent = () => {
   const historyStore = useHistoryStore();
   const { isNative } = usePlatform();
   const timer = useTimer();
-  const { user } = useAuth(); // Access User for Sync
+  const { user } = useAuth();
   
   const pwa = usePWAInstallPrompt();
   const tutorial = useTutorial((pwa.isStandalone || isNative), state.config.developerMode);
@@ -170,6 +170,25 @@ const GameContent = () => {
     setGlobalReducedMotion(state.config.reducedMotion);
   }, [state.config.reducedMotion]);
 
+  // --- GLOBAL SYNC PROTOCOL ---
+  // When a user logs in, automatically push any local unsynced data
+  useEffect(() => {
+    if (user) {
+        console.log("[Sync] User identified. Commencing background synchronization.");
+        
+        // 1. Sync Recent History
+        const unsyncedMatches = historyStore.matches.slice(0, 10); // Sync last 10 for speed
+        unsyncedMatches.forEach(m => SyncService.pushMatch(user.uid, m));
+
+        // 2. Sync Profiles
+        // FIX: Explicitly cast the Array.from result to PlayerProfile[] to satisfy TypeScript compiler
+        const currentProfiles = Array.from(profiles.values()) as PlayerProfile[];
+        if (currentProfiles.length > 0) {
+            SyncService.pushProfiles(user.uid, currentProfiles);
+        }
+    }
+  }, [user]);
+
   // --- MATCH SAVING LOGIC & PROFILE SYNC ---
   useEffect(() => {
     if (state.isMatchOver && state.matchWinner && !savedMatchIdRef.current) {
@@ -200,9 +219,7 @@ const GameContent = () => {
 
         // 2. SYNC TO CLOUD (If Logged In)
         if (user) {
-            SyncService.pushMatch(user.uid, matchData).then(success => {
-                if(success) console.log("Match synced to cloud.");
-            });
+            SyncService.pushMatch(user.uid, matchData);
         }
 
         // 3. UPDATE PROFILES
@@ -235,9 +252,9 @@ const GameContent = () => {
             
             // 4. SYNC PROFILES TO CLOUD
             if (user) {
-                // Wait briefly for batchUpdateStats to settle, then sync
                 setTimeout(() => {
-                    const currentProfiles = Array.from(game.profiles.values()) as PlayerProfile[];
+                    // FIX: Explicitly cast the Array.from result to PlayerProfile[] to satisfy TypeScript compiler
+                    const currentProfiles = Array.from(profiles.values()) as PlayerProfile[];
                     SyncService.pushProfiles(user.uid, currentProfiles);
                 }, 1000);
             }
@@ -262,7 +279,7 @@ const GameContent = () => {
     } else if (!state.isMatchOver && savedMatchIdRef.current) {
         savedMatchIdRef.current = null;
     }
-  }, [state.isMatchOver, state.matchWinner, historyStore, t, batchUpdateStats, state.matchLog, state.teamARoster, state.teamBRoster, user, game.profiles]);
+  }, [state.isMatchOver, state.matchWinner, historyStore, t, batchUpdateStats, state.matchLog, state.teamARoster, state.teamBRoster, user, profiles]);
 
   useScoreAnnouncer({ state, enabled: state.config.announceScore });
 
@@ -386,8 +403,6 @@ const GameContent = () => {
   const normalCards = state.swappedSides ? [cardB, cardA] : [cardA, cardB];
   const containerLayoutClass = "flex-col landscape:flex-row";
 
-  // LOGIC: If Court Modal is active, any other modals opened from it (Settings, Manager, History)
-  // must have a higher z-index to overlay the court properly.
   const overlayZIndex = showCourt ? "z-[110]" : "z-[60]";
 
   return (
@@ -429,8 +444,8 @@ const GameContent = () => {
                     onToggleFixed={togglePlayerFixed} onRemove={removePlayer} onDeletePlayer={deletePlayer} onMove={movePlayer}
                     onAddPlayer={addPlayer} onUndoRemove={undoRemovePlayer} canUndoRemove={game.hasDeletedPlayers} onCommitDeletions={commitDeletions}
                     deletedCount={game.deletedCount} onSetRotationMode={setRotationMode} rotationMode={game.rotationMode}
-                    onBalanceTeams={balanceTeams} onSaveProfile={savePlayerToProfile} onRevertProfile={revertPlayerChanges}
-                    deleteProfile={deleteProfile} upsertProfile={upsertProfile} profiles={game.profiles} onSortTeam={sortTeam}
+                    onBalanceTeams={balanceTeams} onSavePlayerToProfile={savePlayerToProfile} onRevertPlayerChanges={revertPlayerChanges}
+                    deleteProfile={deleteProfile} upsertProfile={upsertProfile} profiles={profiles} onSortTeam={sortTeam}
                     toggleTeamBench={toggleTeamBench} substitutePlayers={substitutePlayers} matchLog={state.matchLog}
                     enablePlayerStats={state.config.enablePlayerStats} reorderQueue={reorderQueue} disbandTeam={disbandTeam}
                     restoreTeam={restoreTeam} onRestorePlayer={(p, t, i) => onRestorePlayer && onRestorePlayer(p, t, i)} resetRosters={resetRosters} relinkProfile={relinkProfile}
@@ -445,7 +460,7 @@ const GameContent = () => {
                     teamA={state.teamARoster} teamB={state.teamBRoster} 
                     scoreA={state.scoreA} scoreB={state.scoreB} 
                     servingTeam={state.servingTeam} onManualRotate={manualRotate} 
-                    onAddPoint={handleAddPointGeneric} onSubtractPoint={state.servingTeam === 'A' ? handleSubA : handleSubB} 
+                    onAddPoint={handleAddPointGeneric} onSubtractPoint={(teamId) => teamId === 'A' ? handleSubA() : handleSubB()} 
                     onMovePlayer={swapPositions} onSubstitute={substitutePlayers} 
                     currentSet={state.currentSet} setsA={state.setsA} setsB={state.setsB} 
                     isMatchPointA={game.isMatchPointA} isMatchPointB={game.isMatchPointB} 

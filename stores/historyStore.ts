@@ -1,30 +1,24 @@
+
 import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { GameConfig, SetHistory, TeamId, ActionLog, Team } from '../types';
 import { SecureStorage } from '../services/SecureStorage';
 
-// --- TYPES (Derived/Extended from Core Types) ---
-
 export type MatchSettings = GameConfig;
 export type ScoreEvent = ActionLog;
 
 export interface Match {
-  id: string;                 // UUID
-  date: string;               // ISO Date String
-  timestamp: number;          // Unix Timestamp for sorting
-  durationSeconds: number;    // Total match time
-  
+  id: string;                 
+  date: string;               
+  timestamp: number;          
+  durationSeconds: number;    
   teamAName: string;
   teamBName: string;
-  
   teamARoster?: Team;
   teamBRoster?: Team;
-
   setsA: number;
   setsB: number;
-  
-  winner: TeamId | null;      // 'A' | 'B'
-  
+  winner: TeamId | null;      
   sets: SetHistory[];
   actionLog?: ActionLog[];
   config: MatchSettings;
@@ -40,8 +34,6 @@ interface HistoryStoreActions {
   clearHistory: () => void;
   exportJSON: () => string;
   importJSON: (jsonStr: string, options?: { merge: boolean }) => { success: boolean; errors?: string[] };
-  
-  // NEW: Merges external matches (e.g. from Cloud Sync)
   mergeMatches: (newMatches: Match[]) => void;
 }
 
@@ -79,10 +71,8 @@ export const useHistoryStore = create<HistoryStoreState & HistoryStoreActions>()
         set({ matches: [] });
       },
 
-      // NEW: Intelligent Merge for Cloud Sync
       mergeMatches: (newMatches) => {
           set((state) => {
-              // Fix: Explicitly type the Map to ensure values are Match objects, avoiding 'unknown' errors
               const currentMap = new Map<string, Match>(state.matches.map(m => [m.id, m]));
               let changes = false;
 
@@ -91,8 +81,6 @@ export const useHistoryStore = create<HistoryStoreState & HistoryStoreActions>()
                       currentMap.set(m.id, m);
                       changes = true;
                   }
-                  // We could add logic here to update existing matches if timestamp is newer
-                  // For now, assuming immutable matches once saved
               });
 
               if (!changes) return state;
@@ -110,48 +98,32 @@ export const useHistoryStore = create<HistoryStoreState & HistoryStoreActions>()
       importJSON: (jsonStr, options = { merge: true }) => {
         try {
           const parsed = JSON.parse(jsonStr);
+          const dataToProcess = Array.isArray(parsed) ? parsed : (parsed.data?.history || []);
 
-          if (!Array.isArray(parsed)) {
-            return { success: false, errors: ['Invalid format: Root must be an array.'] };
+          if (!Array.isArray(dataToProcess)) {
+            return { success: false, errors: ['Formato inválido: lista de partidas não encontrada.'] };
           }
 
           const validMatches: Match[] = [];
-          const errors: string[] = [];
-
-          parsed.forEach((item, index) => {
-            if (
-              typeof item.id === 'string' &&
-              typeof item.timestamp === 'number' &&
-              typeof item.teamAName === 'string' &&
-              typeof item.teamBName === 'string' &&
-              Array.isArray(item.sets)
-            ) {
+          dataToProcess.forEach(item => {
+            if (item.id && item.timestamp && item.teamAName && item.teamBName) {
               validMatches.push(item as Match);
-            } else {
-              errors.push(`Item at index ${index} is missing required Match fields.`);
             }
           });
 
-          if (validMatches.length === 0 && parsed.length > 0) {
-            return { success: false, errors: ['No valid match records found in input.', ...errors] };
-          }
+          if (validMatches.length === 0) return { success: false, errors: ['Nenhuma partida válida encontrada.'] };
 
           set((state) => {
             if (options.merge) {
               const existingIds = new Set(state.matches.map(m => m.id));
               const newUniqueMatches = validMatches.filter(m => !existingIds.has(m.id));
-              const merged = [...newUniqueMatches, ...state.matches].sort((a, b) => b.timestamp - a.timestamp);
-              return { matches: merged };
+              return { matches: [...newUniqueMatches, ...state.matches].sort((a, b) => b.timestamp - a.timestamp) };
             } else {
               return { matches: validMatches.sort((a, b) => b.timestamp - a.timestamp) };
             }
           });
 
-          return { 
-            success: true, 
-            errors: errors.length > 0 ? errors : undefined 
-          };
-
+          return { success: true };
         } catch (e) {
           return { success: false, errors: [(e as Error).message] };
         }

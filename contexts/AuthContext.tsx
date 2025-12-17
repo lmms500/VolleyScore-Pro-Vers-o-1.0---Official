@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from 'firebase/auth';
+import { User, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseInitialized } from '../services/firebase';
 import { Capacitor } from '@capacitor/core';
 
@@ -23,35 +23,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
     }
 
+    // 1. Handle Redirect Result (Crucial for Native/Mobile Chrome flows)
+    getRedirectResult(auth).then((result) => {
+        if (result?.user) {
+            console.log("[Auth] Redirect sign-in success:", result.user.displayName);
+            setUser(result.user);
+        }
+    }).catch((error) => {
+        console.error("[Auth] Redirect error:", error);
+    });
+
+    // 2. Main Observer
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
 
   const signInWithGoogle = async () => {
     if (!isFirebaseInitialized || !auth || !googleProvider) {
-        console.warn("Firebase not configured. Cannot sign in.");
-        alert("Sync is not available. Please configure Firebase API Keys.");
+        console.warn("[Auth] Firebase not initialized. Login unavailable.");
         return;
     }
 
     try {
-      if (Capacitor.isNativePlatform()) {
+      setLoading(true);
+      // Native platforms or small screens prefer redirect for better UX and reliability
+      if (Capacitor.isNativePlatform() || window.innerWidth < 768) {
         await signInWithRedirect(auth, googleProvider);
       } else {
-        await signInWithPopup(auth, googleProvider);
+        const result = await signInWithPopup(auth, googleProvider);
+        setUser(result.user);
       }
     } catch (error) {
-      console.error("Login failed", error);
+      console.error("[Auth] Google Sign-In Failed:", error);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = async () => {
     if (!isFirebaseInitialized || !auth) return;
-    await signOut(auth);
+    try {
+        await signOut(auth);
+        setUser(null);
+    } catch (e) {
+        console.error("[Auth] Logout error:", e);
+    }
   };
 
   return (
