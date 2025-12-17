@@ -1,7 +1,6 @@
 
 import { Capacitor } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
-import { audioService } from './AudioService';
 
 type ResultCallback = (text: string, isFinal: boolean) => void;
 type ErrorCallback = (type: 'permission' | 'network' | 'generic') => void;
@@ -21,7 +20,9 @@ export class VoiceRecognitionService {
 
   private constructor() {
     this.isNative = Capacitor.isNativePlatform();
-    this.initWebEngine();
+    if (!this.isNative) {
+        this.initWebEngine();
+    }
   }
 
   private initWebEngine() {
@@ -79,46 +80,48 @@ export class VoiceRecognitionService {
     const langMap: Record<string, string> = { 'pt': 'pt-BR', 'en': 'en-US', 'es': 'es-ES' };
     const locale = langMap[language] || 'en-US';
 
-    await this.internalStart(locale);
+    if (this.isNative) {
+        await this.internalStartNative(locale);
+    } else {
+        await this.internalStartWeb(locale);
+    }
   }
 
-  private async internalStart(locale: string) {
+  private async internalStartNative(locale: string) {
     if (this.isActualState) return;
-
-    audioService.duck();
-
-    if (this.isNative) {
-      try {
+    try {
         this.updateStatus(true);
         await SpeechRecognition.removeAllListeners();
 
         await SpeechRecognition.addListener('partialResults', (data: { matches: string[] }) => {
-          if (data.matches?.length > 0) this.handleResult(data.matches[0], false);
+            if (data.matches?.length > 0) this.handleResult(data.matches[0], false);
         });
 
         const result = await SpeechRecognition.start({
-          language: locale,
-          maxResults: 1,
-          partialResults: true,
-          popup: false
+            language: locale,
+            maxResults: 1,
+            partialResults: true,
+            popup: false
         });
         
         if (result.matches?.length > 0) this.handleResult(result.matches[0], true);
-        this.handleSessionEnd(locale);
-
-      } catch (e: any) {
+        this.handleNativeSessionEnd(locale);
+    } catch (e: any) {
+        console.warn("[VoiceService] Native Error:", e);
+        this.updateStatus(false);
         if (!e.message?.includes('canceled')) this.handleError('generic');
-        this.handleSessionEnd(locale);
-      }
-    } else if (this.webRecognition) {
-      try {
+    }
+  }
+
+  private async internalStartWeb(locale: string) {
+    if (!this.webRecognition || this.isActualState) return;
+    try {
         this.webRecognition.lang = locale;
         this.webRecognition.start();
         this.updateStatus(true);
-      } catch {
+    } catch (e) {
+        this.updateStatus(false);
         this.handleError('generic');
-        this.handleSessionEnd(locale);
-      }
     }
   }
 
@@ -127,22 +130,19 @@ export class VoiceRecognitionService {
     if (this.restartTimer) clearTimeout(this.restartTimer);
 
     if (this.isNative) {
-      try { await SpeechRecognition.stop(); } catch {}
+        try { await SpeechRecognition.stop(); } catch {}
     } else if (this.webRecognition) {
-      try { this.webRecognition.stop(); } catch {}
+        try { this.webRecognition.stop(); } catch {}
     }
     
     this.updateStatus(false);
-    audioService.unduck();
   }
 
-  private handleSessionEnd(lastLocale: string) {
+  private handleNativeSessionEnd(locale: string) {
       this.updateStatus(false);
       if (this.intendedState) {
           if (this.restartTimer) clearTimeout(this.restartTimer);
-          this.restartTimer = setTimeout(() => this.internalStart(lastLocale), 300);
-      } else {
-          audioService.unduck();
+          this.restartTimer = setTimeout(() => this.internalStartNative(locale), 300);
       }
   }
 
@@ -161,15 +161,17 @@ export class VoiceRecognitionService {
 
     this.webRecognition.onerror = (event: any) => {
       if (event.error === 'no-speech') return;
-      if (event.error === 'not-allowed') {
-          this.intendedState = false;
-          this.handleError('permission');
-      } else {
-          this.handleError('generic');
-      }
+      this.intendedState = false;
+      this.updateStatus(false);
+      this.handleError(event.error === 'not-allowed' ? 'permission' : 'generic');
     };
 
-    this.webRecognition.onend = () => this.handleSessionEnd(this.webRecognition.lang);
+    this.webRecognition.onend = () => {
+        this.updateStatus(false);
+        if (this.intendedState) {
+            this.internalStartWeb(this.webRecognition.lang);
+        }
+    };
   }
 
   private handleResult(text: string, isFinal: boolean) {
@@ -177,7 +179,6 @@ export class VoiceRecognitionService {
   }
 
   private handleError(type: 'permission' | 'network' | 'generic') {
-    audioService.unduck();
     if (this.onError) this.onError(type);
   }
 

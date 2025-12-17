@@ -4,7 +4,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.volleyscore.pro2',
   appName: 'VolleyScore Pro',
-  webDir: 'dist', // Crítico para Vite
+  webDir: 'dist',
   server: {
     androidScheme: 'https'
   },
@@ -12,7 +12,7 @@ const config: CapacitorConfig = {
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
-      launchAutoHide: true,
+      launchAutoHide: false,
       backgroundColor: "#020617",
       androidScaleType: "CENTER_CROP",
       showSpinner: false,
@@ -21,6 +21,10 @@ const config: CapacitorConfig = {
       style: "DARK", 
       backgroundColor: "#00000000",
       overlaysWebView: true,
+    },
+    Keyboard: {
+      resize: "none",
+      style: "dark"
     }
   }
 };

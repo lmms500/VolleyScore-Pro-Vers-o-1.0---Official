@@ -121,6 +121,19 @@ const GameContent = () => {
   const audio = useGameAudio(state.config);
   const haptics = useHaptics(true);
 
+  // --- NATIVE INTEGRATION HOOK ---
+  const anyModalOpen = showSettings || showManager || showHistory || showCourt || showResetConfirm || showFullscreenMenu || !!tutorial.activeTutorial;
+  const handleNativeBack = useCallback(() => {
+      if (showFullscreenMenu) setShowFullscreenMenu(false);
+      else if (showSettings) setShowSettings(false);
+      else if (showManager) setShowManager(false);
+      else if (showHistory) setShowHistory(false);
+      else if (showCourt) setShowCourt(false);
+      else if (showResetConfirm) setShowResetConfirm(false);
+  }, [showFullscreenMenu, showSettings, showManager, showHistory, showCourt, showResetConfirm]);
+
+  useNativeIntegration(game.isMatchActive, isFullscreen, handleNativeBack, anyModalOpen);
+
   // --- TIMER SYNC ---
   useEffect(() => {
     if (state.isTimerRunning && !timer.isRunning) {
@@ -171,17 +184,10 @@ const GameContent = () => {
   }, [state.config.reducedMotion]);
 
   // --- GLOBAL SYNC PROTOCOL ---
-  // When a user logs in, automatically push any local unsynced data
   useEffect(() => {
     if (user) {
-        console.log("[Sync] User identified. Commencing background synchronization.");
-        
-        // 1. Sync Recent History
-        const unsyncedMatches = historyStore.matches.slice(0, 10); // Sync last 10 for speed
+        const unsyncedMatches = historyStore.matches.slice(0, 10);
         unsyncedMatches.forEach(m => SyncService.pushMatch(user.uid, m));
-
-        // 2. Sync Profiles
-        // FIX: Explicitly cast the Array.from result to PlayerProfile[] to satisfy TypeScript compiler
         const currentProfiles = Array.from(profiles.values()) as PlayerProfile[];
         if (currentProfiles.length > 0) {
             SyncService.pushProfiles(user.uid, currentProfiles);
@@ -193,10 +199,8 @@ const GameContent = () => {
   useEffect(() => {
     if (state.isMatchOver && state.matchWinner && !savedMatchIdRef.current) {
         if (state.history.length === 0 && state.scoreA === 0 && state.scoreB === 0) return;
-
         const newMatchId = uuidv4();
         savedMatchIdRef.current = newMatchId;
-
         const matchData: Match = {
             id: newMatchId,
             date: new Date().toISOString(),
@@ -213,32 +217,21 @@ const GameContent = () => {
             teamARoster: state.teamARoster,
             teamBRoster: state.teamBRoster
         };
-        
-        // 1. SAVE LOCAL
         historyStore.addMatch(matchData);
-
-        // 2. SYNC TO CLOUD (If Logged In)
-        if (user) {
-            SyncService.pushMatch(user.uid, matchData);
-        }
-
-        // 3. UPDATE PROFILES
+        if (user) SyncService.pushMatch(user.uid, matchData);
         if (state.matchLog.length > 0) {
             const rosterToProfileMap = new Map<string, string>();
             const playerTeamMap = new Map<string, TeamId>(); 
-
             const mapPlayer = (p: any, tid: TeamId) => {
                 if (p.profileId) {
                     rosterToProfileMap.set(p.id, p.profileId);
                     playerTeamMap.set(p.profileId, tid);
                 }
             };
-
             state.teamARoster.players.forEach(p => mapPlayer(p, 'A'));
             state.teamARoster.reserves?.forEach(p => mapPlayer(p, 'A'));
             state.teamBRoster.players.forEach(p => mapPlayer(p, 'B'));
             state.teamBRoster.reserves?.forEach(p => mapPlayer(p, 'B'));
-
             const mappedLog = state.matchLog.map(log => {
                 if (log.type === 'POINT' && log.playerId) {
                     const profileId = rosterToProfileMap.get(log.playerId);
@@ -246,56 +239,22 @@ const GameContent = () => {
                 }
                 return log;
             });
-
             const deltas = calculateMatchDeltas(mappedLog, state.matchWinner, playerTeamMap);
             batchUpdateStats(deltas);
-            
-            // 4. SYNC PROFILES TO CLOUD
             if (user) {
                 setTimeout(() => {
-                    // FIX: Explicitly cast the Array.from result to PlayerProfile[] to satisfy TypeScript compiler
                     const currentProfiles = Array.from(profiles.values()) as PlayerProfile[];
                     SyncService.pushProfiles(user.uid, currentProfiles);
                 }, 1000);
             }
-            
-            setNotificationState({
-                visible: true,
-                type: 'success',
-                mainText: t('notifications.matchSaved'),
-                subText: user ? "Saved & Synced" : t('notifications.profileSynced'),
-                systemIcon: 'save'
-            });
-        } else {
-            setNotificationState({
-                visible: true,
-                type: 'success',
-                mainText: t('notifications.matchSaved'),
-                subText: user ? "Saved & Synced" : t('notifications.matchSavedSub'),
-                systemIcon: 'save'
-            });
+            setNotificationState({ visible: true, type: 'success', mainText: t('notifications.matchSaved'), subText: user ? "Saved & Synced" : t('notifications.profileSynced'), systemIcon: 'save' });
         }
-
     } else if (!state.isMatchOver && savedMatchIdRef.current) {
         savedMatchIdRef.current = null;
     }
   }, [state.isMatchOver, state.matchWinner, historyStore, t, batchUpdateStats, state.matchLog, state.teamARoster, state.teamBRoster, user, profiles]);
 
   useScoreAnnouncer({ state, enabled: state.config.announceScore });
-
-  const isAnyModalOpen = showSettings || showManager || showHistory || showResetConfirm || showFullscreenMenu || state.isMatchOver || !!tutorial.activeTutorial || showAdConfirm || showCourt;
-  
-  const handleNativeBack = useCallback(() => {
-      if (showFullscreenMenu) setShowFullscreenMenu(false);
-      else if (showSettings) setShowSettings(false);
-      else if (showManager) setShowManager(false);
-      else if (showHistory) setShowHistory(false);
-      else if (showCourt) setShowCourt(false);
-      else if (showResetConfirm) setShowResetConfirm(false);
-      else if (showAdConfirm) cancelWatchAd();
-  }, [showFullscreenMenu, showSettings, showManager, showHistory, showResetConfirm, showAdConfirm, cancelWatchAd, showCourt]);
-
-  useNativeIntegration(game.isMatchActive, isFullscreen, handleNativeBack, isAnyModalOpen);
 
   const handleAddPointGeneric = useCallback((teamId: TeamId, playerId?: string, skill?: SkillType) => {
       const cleanPlayerId = (playerId && playerId.length > 0) ? playerId : undefined;
@@ -308,18 +267,14 @@ const GameContent = () => {
       let subText = t('notifications.forTeam', { teamName: team.name });
       if (skill === 'opponent_error') {
           mainText = t('scout.skills.opponent_error');
-          subText = t('notifications.forTeam', { teamName: team.name });
       } else if (cleanPlayerId) {
-          if (cleanPlayerId === 'unknown') {
-              mainText = t('scout.unknownPlayer');
-          } else {
+          if (cleanPlayerId === 'unknown') mainText = t('scout.unknownPlayer');
+          else {
               const player = team.players.find(p => p.id === cleanPlayerId) || team.reserves?.find(p => p.id === cleanPlayerId);
               if (player) mainText = player.name;
           }
       }
-      setNotificationState({
-          visible: true, type: 'success', mainText: mainText, subText: subText, skill: skill, color: color, timestamp: Date.now()
-      });
+      setNotificationState({ visible: true, type: 'success', mainText: mainText, subText: subText, skill: skill, color: color, timestamp: Date.now() });
   }, [addPoint, audio, state.teamARoster, state.teamBRoster, t]);
 
   const handleAddA = useCallback((teamId: TeamId, playerId?: string, skill?: any) => { handleAddPointGeneric('A', playerId, skill); }, [handleAddPointGeneric]);
@@ -334,11 +289,6 @@ const GameContent = () => {
     audio.playUndo(); haptics.impact('heavy'); subtractPoint('B');
     setNotificationState({ visible: true, type: 'info', mainText: t('notifications.pointRemoved'), subText: t('notifications.pointRemovedSub'), systemIcon: 'undo', timestamp: Date.now() });
   }, [subtractPoint, audio, haptics, t]);
-
-  const handleSetServerA = useCallback(() => setServer('A'), [setServer]);
-  const handleSetServerB = useCallback(() => setServer('B'), [setServer]);
-  const handleTimeoutA = useCallback(() => useTimeout('A'), [useTimeout]);
-  const handleTimeoutB = useCallback(() => useTimeout('B'), [useTimeout]);
 
   const handleUndo = useCallback(() => {
     if (state.isMatchOver && savedMatchIdRef.current) {
@@ -358,25 +308,14 @@ const GameContent = () => {
   const handleNextGame = () => { if (state.config.adsRemoved) { rotateTeams(); } else { triggerSupportAd(() => rotateTeams()); } };
   const handleResetGame = () => { if (state.config.adsRemoved) { resetMatch(); } else { triggerSupportAd(() => resetMatch()); } };
 
-  const handleVoiceAddPoint = useCallback((team: TeamId, playerId?: string, skill?: SkillType) => { handleAddPointGeneric(team, playerId, skill); }, [handleAddPointGeneric]);
-  const handleVoiceSubtract = useCallback((team: TeamId) => { if (team === 'A') handleSubA(); else handleSubB(); }, [handleSubA, handleSubB]);
-  const handleVoiceTimeout = useCallback((team: TeamId) => { useTimeout(team); const teamName = team === 'A' ? state.teamAName : state.teamBName; setNotificationState({ visible: true, type: 'info', mainText: t('notifications.timeoutCalled'), subText: t('notifications.timeoutCalledSub', { teamName }), systemIcon: 'alert', timestamp: Date.now() }); }, [useTimeout, state.teamAName, state.teamBName, t]);
-  const handleVoiceSetServer = useCallback((team: TeamId) => { setServer(team); audio.playTap(); const teamName = team === 'A' ? state.teamAName : state.teamBName; setNotificationState({ visible: true, type: 'info', mainText: t('notifications.serveChange'), subText: t('notifications.serveChangeSub', { teamName }), systemIcon: 'transfer', timestamp: Date.now() }); }, [setServer, state.teamAName, state.teamBName, audio, t]);
-  const handleVoiceError = useCallback((errorType: 'permission' | 'network' | 'generic', transcript?: string) => { let msg = t('notifications.micError'); if (errorType === 'permission') msg = t('notifications.accessDenied'); if (errorType === 'network') msg = t('notifications.networkError'); haptics.notification('error'); setNotificationState({ visible: true, type: 'error', mainText: transcript || msg, systemIcon: 'block', timestamp: Date.now() }); }, [haptics, t]);
-  const handleVoiceUnknown = useCallback((text: string) => { haptics.impact('light'); setNotificationState({ visible: true, type: 'error', mainText: text, subText: t('notifications.notUnderstood'), systemIcon: 'alert', timestamp: Date.now() }); }, [haptics, t]);
-  const handleVoiceAmbiguous = useCallback((candidates: string[]) => { haptics.notification('warning'); const list = candidates.join(', '); setNotificationState({ visible: true, type: 'info', mainText: t('notifications.ambiguous'), subText: `${list}`, systemIcon: 'alert', timestamp: Date.now() }); }, [haptics, t]);
-
   const { isListening, toggleListening, isProcessingAI } = useVoiceControl({
       enabled: state.config.voiceControlEnabled,
       enablePlayerStats: state.config.enablePlayerStats, 
-      onAddPoint: handleVoiceAddPoint,
-      onSubtractPoint: handleVoiceSubtract,
+      onAddPoint: handleAddPointGeneric,
+      onSubtractPoint: (team: TeamId) => team === 'A' ? handleSubA() : handleSubB(),
       onUndo: handleUndo,
-      onTimeout: handleVoiceTimeout,
-      onSetServer: handleVoiceSetServer,
-      onError: handleVoiceError,
-      onUnknownCommand: handleVoiceUnknown,
-      onAmbiguousCommand: handleVoiceAmbiguous,
+      onTimeout: (team: TeamId) => { useTimeout(team); },
+      onSetServer: (team: TeamId) => { setServer(team); },
       language: language,
       teamAName: state.teamAName,
       teamBName: state.teamBName,
@@ -385,47 +324,44 @@ const GameContent = () => {
       servingTeam: state.servingTeam
   });
 
-  useEffect(() => {
-      if (isProcessingAI) {
-          setNotificationState({ visible: true, type: 'info', mainText: t('notifications.thinking'), subText: t('notifications.aiProcessing'), systemIcon: 'mic', timestamp: Date.now() });
-      } else {
-          setNotificationState(prev => prev.mainText === t('notifications.thinking') ? { ...prev, visible: false } : prev);
-      }
-  }, [isProcessingAI, t]);
-
   const hudPlacement = useHudMeasure({ leftScoreEl: scoreElA, rightScoreEl: scoreElB, enabled: isFullscreen && !state.config.voiceControlEnabled, maxSets: state.config.maxSets });
   const handleToggleFullscreen = () => { setIsFullscreen(!isFullscreen); haptics.impact('light'); };
-  const handleInteractionStart = (team: TeamId) => setInteractingTeam(team);
-  const handleInteractionEnd = () => setInteractingTeam(null);
 
-  const cardA = <ScoreCardNormal key="card-A" teamId="A" team={state.teamARoster} score={state.scoreA} setsWon={state.setsA} isServing={state.servingTeam === 'A'} onAdd={handleAddA} onSubtract={handleSubA} onSetServer={handleSetServerA} timeouts={state.timeoutsA} onTimeout={handleTimeoutA} isMatchPoint={game.isMatchPointA} isSetPoint={game.isSetPointA} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} setsNeededToWin={game.setsNeededToWin} colorTheme={state.teamARoster.color} config={state.config} />;
-  const cardB = <ScoreCardNormal key="card-B" teamId="B" team={state.teamBRoster} score={state.scoreB} setsWon={state.setsB} isServing={state.servingTeam === 'B'} onAdd={handleAddB} onSubtract={handleSubB} onSetServer={handleSetServerB} timeouts={state.timeoutsB} onTimeout={handleTimeoutB} isMatchPoint={game.isMatchPointB} isSetPoint={game.isSetPointB} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} setsNeededToWin={game.setsNeededToWin} colorTheme={state.teamBRoster.color} config={state.config} />;
+  const cardA = <ScoreCardNormal key="card-A" teamId="A" team={state.teamARoster} score={state.scoreA} setsWon={state.setsA} isServing={state.servingTeam === 'A'} onAdd={handleAddA} onSubtract={handleSubA} onSetServer={() => setServer('A')} timeouts={state.timeoutsA} onTimeout={() => useTimeout('A')} isMatchPoint={game.isMatchPointA} isSetPoint={game.isSetPointA} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} setsNeededToWin={game.setsNeededToWin} colorTheme={state.teamARoster.color} config={state.config} />;
+  const cardB = <ScoreCardNormal key="card-B" teamId="B" team={state.teamBRoster} score={state.scoreB} setsWon={state.setsB} isServing={state.servingTeam === 'B'} onAdd={handleAddB} onSubtract={handleSubB} onSetServer={() => setServer('B')} timeouts={state.timeoutsB} onTimeout={() => useTimeout('B')} isMatchPoint={game.isMatchPointB} isSetPoint={game.isSetPointB} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} setsNeededToWin={game.setsNeededToWin} colorTheme={state.teamBRoster.color} config={state.config} />;
   const normalCards = state.swappedSides ? [cardB, cardA] : [cardA, cardB];
-  const containerLayoutClass = "flex-col landscape:flex-row";
 
   const overlayZIndex = showCourt ? "z-[110]" : "z-[60]";
 
   return (
-    <div className="relative w-full h-[100dvh] bg-slate-50 dark:bg-[#020617] overflow-hidden select-none touch-none pb-safe-bottom pt-safe-top pl-safe-left pr-safe-right flex flex-col">
+    <div 
+        className="relative w-full h-[100dvh] bg-slate-50 dark:bg-[#020617] overflow-hidden select-none touch-none flex flex-col pt-safe-top pb-safe-bottom pl-safe-left pr-safe-right"
+        style={{ 
+            paddingTop: 'env(safe-area-inset-top)',
+            paddingBottom: 'env(safe-area-inset-bottom)',
+            paddingLeft: 'env(safe-area-inset-left)',
+            paddingRight: 'env(safe-area-inset-right)'
+        }}
+    >
         <BackgroundGlow isSwapped={state.swappedSides} isFullscreen={isFullscreen} colorA={state.teamARoster.color} colorB={state.teamBRoster.color} lowPowerMode={state.config.lowGraphics} />
         <SuddenDeathOverlay active={state.inSuddenDeath} />
         {isFullscreen && (
             <>
                 <MeasuredFullscreenHUD placement={hudPlacement} setsLeft={state.swappedSides ? state.setsB : state.setsA} setsRight={state.swappedSides ? state.setsA : state.setsB} colorLeft={state.swappedSides ? state.teamBRoster.color : state.teamARoster.color || 'indigo'} colorRight={state.swappedSides ? state.teamARoster.color : state.teamBRoster.color || 'rose'} />
-                <FloatingTopBar currentSet={state.currentSet} isTieBreak={game.isTieBreak} onToggleTimer={() => game.setState({ type: 'TOGGLE_TIMER' })} onResetTimer={() => game.setState({ type: 'RESET_TIMER' })} isTimerRunning={state.isTimerRunning} teamNameA={state.teamAName} teamNameB={state.teamBName} teamLogoA={state.teamARoster.logo} teamLogoB={state.teamBRoster.logo} colorA={state.teamARoster.color || 'indigo'} colorB={state.teamBRoster.color || 'rose'} isServingLeft={state.servingTeam === (state.swappedSides ? 'B' : 'A')} isServingRight={state.servingTeam === (state.swappedSides ? 'A' : 'B')} onSetServerA={handleSetServerA} onSetServerB={handleSetServerB} timeoutsA={state.timeoutsA} timeoutsB={state.timeoutsB} onTimeoutA={handleTimeoutA} onTimeoutB={handleTimeoutB} isMatchPointA={game.isMatchPointA} isSetPointA={game.isSetPointA} isMatchPointB={game.isMatchPointB} isSetPointB={game.isSetPointB} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} reverseLayout={state.swappedSides} />
+                <FloatingTopBar currentSet={state.currentSet} isTieBreak={game.isTieBreak} onToggleTimer={() => game.setState({ type: 'TOGGLE_TIMER' })} onResetTimer={() => game.setState({ type: 'RESET_TIMER' })} isTimerRunning={state.isTimerRunning} teamNameA={state.teamAName} teamNameB={state.teamBName} teamLogoA={state.teamARoster.logo} teamLogoB={state.teamBRoster.logo} colorA={state.teamARoster.color || 'indigo'} colorB={state.teamBRoster.color || 'rose'} isServingLeft={state.servingTeam === (state.swappedSides ? 'B' : 'A')} isServingRight={state.servingTeam === (state.swappedSides ? 'A' : 'B')} onSetServerA={() => setServer('A')} onSetServerB={() => setServer('B')} timeoutsA={state.timeoutsA} timeoutsB={state.timeoutsB} onTimeoutA={() => useTimeout('A')} onTimeoutB={() => useTimeout('B')} isMatchPointA={game.isMatchPointA} isSetPointA={game.isSetPointA} isMatchPointB={game.isMatchPointB} isSetPointB={game.isSetPointB} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} reverseLayout={state.swappedSides} />
                 <FloatingControlBar onUndo={handleUndo} canUndo={game.canUndo} onSwap={handleToggleSides} onReset={() => setShowResetConfirm(true)} onMenu={() => setShowFullscreenMenu(true)} onCourt={() => setShowCourt(true)} voiceEnabled={state.config.voiceControlEnabled} isListening={isListening} onToggleListening={toggleListening} />
-                <button onClick={() => setIsFullscreen(false)} className="absolute top-4 right-4 z-[60] p-2 rounded-full bg-black/20 dark:bg-white/10 hover:bg-black/40 dark:hover:bg-white/20 backdrop-blur-md text-slate-300 dark:text-slate-400 hover:text-white transition-all active:scale-95 border border-white/5"><Minimize2 size={18} strokeWidth={2} /></button>
+                <button onClick={() => setIsFullscreen(false)} className="absolute top-4 right-4 z-[60] p-2 rounded-full bg-black/20 dark:bg-white/10 hover:bg-black/40 dark:hover:bg-white/20 backdrop-blur-md text-slate-300 dark:text-slate-400 hover:white transition-all active:scale-95 border border-white/5"><Minimize2 size={18} strokeWidth={2} /></button>
             </>
         )}
         <FullscreenMenuDrawer isOpen={showFullscreenMenu} onClose={() => setShowFullscreenMenu(false)} onOpenSettings={() => setShowSettings(true)} onOpenRoster={() => setShowManager(true)} onOpenHistory={() => setShowHistory(true)} onExitFullscreen={() => setIsFullscreen(false)} />
         <div className={`relative w-full flex-1 flex flex-col min-h-0 ${isFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
             {!isFullscreen && <HistoryBar history={state.history} setsA={state.setsA} setsB={state.setsB} colorA={state.teamARoster.color || 'indigo'} colorB={state.teamBRoster.color || 'rose'} />}
             <LayoutGroup>
-                <div className={`flex-1 flex ${containerLayoutClass} gap-2 sm:gap-4 min-h-0 my-2 sm:my-4 justify-between`}>
+                <div className={`flex-1 flex flex-col landscape:flex-row gap-2 sm:gap-4 min-h-0 my-2 sm:my-4 justify-between`}>
                     {isFullscreen ? (
                         <>
-                            <ScoreCardFullscreen teamId="A" team={state.teamARoster} score={state.scoreA} onAdd={handleAddA} onSubtract={handleSubA} isMatchPoint={game.isMatchPointA} isSetPoint={game.isSetPointA} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} colorTheme={state.teamARoster.color} isLocked={interactingTeam === 'B'} onInteractionStart={() => handleInteractionStart('A')} onInteractionEnd={handleInteractionEnd} reverseLayout={state.swappedSides} scoreRefCallback={setScoreElA} isServing={state.servingTeam === 'A'} config={state.config} />
-                            <ScoreCardFullscreen teamId="B" team={state.teamBRoster} score={state.scoreB} onAdd={handleAddB} onSubtract={handleSubB} isMatchPoint={game.isMatchPointB} isSetPoint={game.isSetPointB} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} colorTheme={state.teamBRoster.color} isLocked={interactingTeam === 'A'} onInteractionStart={() => handleInteractionStart('B')} onInteractionEnd={handleInteractionEnd} reverseLayout={state.swappedSides} scoreRefCallback={setScoreElB} isServing={state.servingTeam === 'B'} config={state.config} />
+                            <ScoreCardFullscreen teamId="A" team={state.teamARoster} score={state.scoreA} onAdd={handleAddA} onSubtract={handleSubA} isMatchPoint={game.isMatchPointA} isSetPoint={game.isSetPointA} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} colorTheme={state.teamARoster.color} isLocked={interactingTeam === 'B'} onInteractionStart={() => setInteractingTeam('A')} onInteractionEnd={() => setInteractingTeam(null)} reverseLayout={state.swappedSides} scoreRefCallback={setScoreElA} isServing={state.servingTeam === 'A'} config={state.config} />
+                            <ScoreCardFullscreen teamId="B" team={state.teamBRoster} score={state.scoreB} onAdd={handleAddB} onSubtract={handleSubB} isMatchPoint={game.isMatchPointB} isSetPoint={game.isSetPointB} isDeuce={game.isDeuce} inSuddenDeath={state.inSuddenDeath} colorTheme={state.teamBRoster.color} isLocked={interactingTeam === 'A'} onInteractionStart={() => setInteractingTeam('B')} onInteractionEnd={() => setInteractingTeam(null)} reverseLayout={state.swappedSides} scoreRefCallback={setScoreElB} isServing={state.servingTeam === 'B'} config={state.config} />
                         </>
                     ) : ( normalCards )}
                 </div>
@@ -433,7 +369,7 @@ const GameContent = () => {
             {!isFullscreen && <Controls onUndo={handleUndo} canUndo={game.canUndo} onSwap={handleToggleSides} onSettings={() => setShowSettings(true)} onRoster={() => setShowManager(true)} onHistory={() => setShowHistory(true)} onReset={() => setShowResetConfirm(true)} onToggleFullscreen={handleToggleFullscreen} voiceEnabled={state.config.voiceControlEnabled} isListening={isListening} onToggleListening={toggleListening} />}
         </div>
         <SmartBanner isVisible={!isFullscreen && !state.config.adsRemoved} />
-        <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm"><div className="bg-white dark:bg-slate-900 p-4 rounded-full shadow-xl"><Loader2 className="animate-spin text-indigo-500" /></div></div>}>
+        <Suspense fallback={<GlobalLoader />}>
             {showSettings && <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} config={state.config} isMatchActive={game.isMatchActive} onSave={(newConfig, reset) => { applySettings(newConfig, reset); setShowSettings(false); }} zIndex={overlayZIndex} />}
             {showManager && (
                 <TeamManagerModal 

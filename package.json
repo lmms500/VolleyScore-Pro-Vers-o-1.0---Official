@@ -1,3 +1,4 @@
+
 {
   "name": "volleyscore-pro-2",
   "private": true,
@@ -9,11 +10,11 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "cap:sync": "npm run build && npx cap sync",
-    "cap:copy": "npm run build && npx cap copy",
-    "android": "npx cap open android",
-    "ios": "npx cap open ios"
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^6.0.0",
     "@capacitor-community/keep-awake": "^6.0.0",
     "@capacitor-community/speech-recognition": "^6.0.0",
     "@capacitor-community/text-to-speech": "^6.0.0",
@@ -21,6 +22,7 @@
     "@capacitor/core": "^6.0.0",
     "@capacitor/filesystem": "^6.0.0",
     "@capacitor/haptics": "^6.0.0",
+    "@capacitor/keyboard": "^6.0.0",
     "@capacitor/preferences": "^6.0.0",
     "@capacitor/screen-orientation": "^6.0.0",
     "@capacitor/share": "^6.0.0",

@@ -5,6 +5,7 @@ import { App as CapApp } from '@capacitor/app';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
+import { Keyboard, KeyboardResize } from '@capacitor/keyboard';
 
 export const useNativeIntegration = (
     isMatchActive: boolean,
@@ -14,93 +15,72 @@ export const useNativeIntegration = (
 ) => {
     const isNative = Capacitor.isNativePlatform();
 
-    // 1. Initial Native Setup (Status Bar & Splash)
     useEffect(() => {
         if (isNative) {
             const initNative = async () => {
                 try {
-                    // Transparent Status Bar for "Edge-to-Edge" look
+                    // StatusBar: Estilo escuro e transparente para efeito Edge-to-Edge
                     await StatusBar.setStyle({ style: Style.Dark });
                     if (Capacitor.getPlatform() === 'android') {
                         await StatusBar.setOverlaysWebView({ overlay: true });
                         await StatusBar.setBackgroundColor({ color: '#00000000' });
                     }
                     
-                    // Hide Splash smoothly
+                    // Teclado: Não redimensionar a UI para evitar quebras no layout do placar
+                    if (Capacitor.getPlatform() === 'ios') {
+                        await Keyboard.setResizeMode({ mode: KeyboardResize.None });
+                    }
+
+                    // Esconder Splash Screen após a app carregar
                     setTimeout(async () => {
                         await SplashScreen.hide();
-                    }, 300);
+                    }, 500);
                 } catch (e) {
-                    console.warn("Native init warning:", e);
+                    console.warn("[NativeIntegration] Erro ao inicializar plugins nativos:", e);
                 }
             };
             initNative();
         }
     }, [isNative]);
 
-    // 2. Reactive Orientation Locking
+    // Bloqueio de Orientação Dinâmico
     useEffect(() => {
-        const lockOrientation = async () => {
-            const targetOrientation = isFullscreen ? 'landscape' : 'portrait';
-            
-            if (isNative) {
+        if (isNative) {
+            const lockOrientation = async () => {
                 try {
-                    await ScreenOrientation.lock({ orientation: targetOrientation });
+                    if (isFullscreen) {
+                        await ScreenOrientation.lock({ orientation: 'landscape' });
+                    } else {
+                        await ScreenOrientation.lock({ orientation: 'portrait' });
+                    }
                 } catch (e) {
-                    // Fallback or ignore if device doesn't support lock
+                    console.debug("[NativeIntegration] ScreenOrientation não suportado.");
                 }
-            } 
-        };
-        lockOrientation();
-        
-        // Cleanup: Reset to portrait on unmount if needed, or leave as is
-        return () => {
-            if (isNative && isFullscreen) {
-               ScreenOrientation.lock({ orientation: 'portrait' }).catch(() => {});
-            }
+            };
+            lockOrientation();
         }
     }, [isFullscreen, isNative]);
 
-    // 3. Hardware Back Button Handling (Android)
+    // Manipulação do Botão de Voltar (Android)
     useEffect(() => {
         if (!isNative) return;
 
-        let lastBackPress = 0;
-
-        const handleBackButton = async () => {
-            const now = Date.now();
-            
+        const listener = CapApp.addListener('backButton', ({ canGoBack }) => {
             if (modalsOpen) {
-                // If a modal is open (Settings, Roster, etc), close it via the provided callback
                 onBackAction();
                 return;
             }
 
             if (isMatchActive) {
-                // Prevent accidental exit during a game
-                // Could show a toast here: "Press back again to exit"
-                if (now - lastBackPress < 2000) {
-                    CapApp.minimizeApp(); // Minimize instead of Exit is standard Android behavior
-                } else {
-                    lastBackPress = now;
-                    // Optional: Show native toast "Press again to exit"
-                }
-            } else {
-                // On Home/Idle screen
-                if (now - lastBackPress < 2000) {
-                    CapApp.minimizeApp();
-                } else {
-                    lastBackPress = now;
-                }
+                // Em jogo ativo, apenas minimizamos para evitar fechar por erro
+                CapApp.minimizeApp();
+            } else if (!canGoBack) {
+                CapApp.exitApp();
             }
-        };
-
-        const listener = CapApp.addListener('backButton', () => {
-            handleBackButton();
         });
 
         return () => {
             listener.then(l => l.remove());
         };
-    }, [isMatchActive, modalsOpen, onBackAction, isNative]);
+    }, [isNative, isMatchActive, modalsOpen, onBackAction]);
 };
